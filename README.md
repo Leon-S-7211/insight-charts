@@ -37,18 +37,22 @@ cp -r skills/insight-charts ~/.claude/skills/
 dsh plugin --profile web add dsh-plugin-insight-charts
 ```
 
+`web` 换成你实际使用的配置名，比如 `tui`、`headless`。DSH 桌面版请用应用内的插件管理安装，命令行装进 `web` 配置的插件不会出现在桌面版里。
+
 也可以直接从 GitHub 安装，把 `<commit>` 换成本仓库最新的提交号：
 
 ```bash
 dsh plugin --profile web add github:Leon-S-7211/insight-charts#<commit>
 ```
 
-或者作为普通技能复制（社区文档给出的两个位置，任选其一）：
+或者不装插件，只把技能目录复制到 DSH 会扫描的位置，任选其一：
 
 ```bash
-cp -r skills/insight-charts ~/.deepseek/skills/
-cp -r skills/insight-charts <项目目录>/.agents/skills/
+cp -r skills/insight-charts ~/.dsh/skills/              # 对所有项目生效
+cp -r skills/insight-charts <项目目录>/.dsh/skills/       # 只对这个项目生效
 ```
+
+`~/.agents/skills/` 和 `<项目目录>/.agents/skills/` 同样会被扫描。
 
 ### 其他支持 SKILL.md 的智能体
 
@@ -56,11 +60,21 @@ cp -r skills/insight-charts <项目目录>/.agents/skills/
 
 ## 用法
 
-装好后直接对智能体说需求，例如：
+### 一条命令调用
 
-> 用 insight-charts 把这份月度数据画成带事件分隔线的趋势图，标出三次模型发布。
+在输入框里打 `/insight-charts`，后面接你的需求：
 
-> 这一节讲应收质量，帮我配一组四联图，标题写成结论。
+```
+/insight-charts 把这份月度数据画成带事件分隔线的趋势图，标出三次模型发布
+/insight-charts 这一节讲应收质量，配一组四联图，标题写成结论
+```
+
+- **DeepSeek Harness**：这一行会让 DSH 把整份技能说明直接交给模型，模型按规范出图，已在 DSH 0.2.2-rc.1 上实测。网页版里打 `/` 会弹出技能菜单，可以直接选。
+- **Claude Code**：装成插件后命令带插件前缀，是 `/insight-charts:insight-charts`；复制到 `~/.claude/skills/` 的话就是 `/insight-charts`。
+
+### 直接说需求
+
+不打命令也可以，直接说「用 insight-charts 画……」，或者只描述要画什么图，模型会按技能目录自己判断要不要用。
 
 也可以不经过智能体，直接出图：
 
@@ -89,7 +103,8 @@ package.json, cordis.patch.yml, index.js, locale/, icon.svg   DeepSeek Harness �
 ## 说明
 
 - 风格参考了海外另类数据商的数据简报和卖方研究报告的图表习惯，本仓库不包含任何第三方的标志、水印或数据。
-- DeepSeek Harness 的清单格式依据社区公开插件的写法整理，尚未在真实的 DSH 环境里安装验证。
+- 已在 DeepSeek Harness 0.2.2-rc.1 上实测：从 npm 安装、插件加载、技能进入目录、`/insight-charts` 把技能说明交给模型。实测用的是本地模拟的模型接口，没有接真实模型跑完整出图。
+- Claude Code 的插件安装尚未实测。
 
 ## 许可
 

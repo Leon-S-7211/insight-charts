@@ -30,7 +30,7 @@ from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.patches import Circle, FancyBboxPatch, Patch, Polygon, Rectangle  # noqa: E402
 from matplotlib.ticker import FuncFormatter, MaxNLocator  # noqa: E402
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # --------------------------------------------------------------------------
 # Style tokens

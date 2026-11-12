@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-insight-charts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Research-report-quality charts as an agent skill: two themes, seven matplotlib recipes (event-marked trends, family-coloured stacks, bar+line, panel grids, highlighted areas, scenario fans, capability ladders) plus rules for when to place a chart and how to title it.",
   "type": "module",
   "main": "index.js",
@@ -46,7 +46,7 @@
     "url": "https://github.com/Leon-S-7211/insight-charts/issues"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh": ">=0.1.2-rc.1 <0.3.0"
+    "@deepseek-ai/dsh": ">=0.1.2-rc.1 <0.2.2-0 || >=0.2.2-0 <0.3.0-0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh": {
