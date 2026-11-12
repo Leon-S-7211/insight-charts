@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """insight_charts — research-grade chart recipes on top of matplotlib.
 
-Two themes, twelve recipes, shared emphasis marks. Import it, or drive it with a JSON spec:
+Two themes, sixteen recipes, shared emphasis marks. Import it, or drive it with a JSON spec:
 
     python insight_charts.py spec.json -o chart.png
 
@@ -27,10 +27,11 @@ from matplotlib import patheffects as pe  # noqa: E402
 from matplotlib.transforms import blended_transform_factory  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap, to_rgb  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
-from matplotlib.patches import Circle, Ellipse, FancyBboxPatch, Patch, Polygon, Rectangle  # noqa: E402
+from matplotlib.patches import (Circle, Ellipse, FancyArrowPatch, FancyBboxPatch, Patch,  # noqa: E402
+                                Polygon, Rectangle)
 from matplotlib.ticker import FuncFormatter, MaxNLocator  # noqa: E402
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # --------------------------------------------------------------------------
 # Style tokens
@@ -713,7 +714,8 @@ _PANEL_DRAWERS = {}
 def panel_grid(panels, ncols=2, start_number=1, out=None, figsize=None, lang=None):
     """Several small conclusions on one canvas. Each panel is a dict:
 
-    {"kind": "bar_line" | "cost_steps" | "bars" | "area" | "lines" | "waterfall" | "aligned",
+    {"kind": "bar_line" | "cost_steps" | "bars" | "area" | "lines" | "waterfall" | "aligned"
+             | "donut" | "stacked_total",
      "title": "conclusion sentence", "source": "...", "unit": "Unit: RMB m", ...recipe args}
 
     Titles are numbered automatically from start_number (pass start_number=None to skip)."""
@@ -1844,7 +1846,358 @@ def share_compare(columns, parts, title=None, source=None, unit=None, number=Non
     return _save(fig, out)
 
 
-_PANEL_DRAWERS.update(waterfall=_draw_waterfall, aligned=_draw_aligned)
+# --------------------------------------------------------------------------
+# Diagram canvas: a mono frame whose plot area is handed over to drawing
+# --------------------------------------------------------------------------
+def _diagram_canvas(figsize, title, source, number=None, unit=None):
+    fig, ax0 = _frame_mono(figsize, _numbered(title, number), source, unit)
+    floor, ceil = ax0._ic_bounds
+    ax0.remove()
+    return fig, (0.04, floor + 0.01, 0.92, ceil - floor - 0.02)
+
+
+def _two_tone(ax, x, y, first, second, size, transform=None, ha="center", colors=None):
+    """'name：' in ink and 'key' in red on one line, centred (or left-aligned) on x."""
+    M = MONO
+    c1, c2 = colors or (M["ink"], M["alert"])
+    tr = transform or ax.transData
+    fig = ax.figure
+    a = ax.text(x, y, first, transform=tr, fontsize=size, fontweight="bold", color=c1, ha="left",
+                va="center", zorder=8)
+    b = ax.text(x, y, second, transform=tr, fontsize=size, fontweight="bold", color=c2, ha="left",
+                va="center", zorder=8)
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    wa, wb = a.get_window_extent(rend).width, b.get_window_extent(rend).width
+    px0 = tr.transform((x, y))[0] - ((wa + wb) / 2 if ha == "center" else 0)
+    inv = tr.inverted()
+    a.set_x(inv.transform((px0, 0))[0])
+    b.set_x(inv.transform((px0 + wa, 0))[0])
+    return a, b
+
+
+# --------------------------------------------------------------------------
+# Recipe 13 — flywheel: nodes on a loop around a hub, one or more loops side by side
+# --------------------------------------------------------------------------
+def _draw_wheel(ax, wheel, hub_color):
+    M = MONO
+    nodes = wheel["nodes"]
+    n = len(nodes)
+    ax.set_xlim(-1.5, 1.5)
+    ax.set_ylim(-1.62, 1.5)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    if wheel.get("title") or wheel.get("key"):
+        _two_tone(ax, 0, 1.40, wheel.get("title", ""), wheel.get("key", ""), 10.2)
+    ax.add_patch(Circle((0, 0), 0.40, fc=hub_color, ec="none", zorder=3))
+    ax.text(0, 0, "\n".join(_wrap(wheel.get("center", ""), 6)), ha="center", va="center",
+            fontsize=10.5, fontweight="bold", color="white", zorder=4, linespacing=1.15)
+    angles = [np.pi / 2 - 2 * np.pi * j / n for j in range(n)]
+    texts = []
+    for th, label in zip(angles, nodes):
+        texts.append(ax.text(np.cos(th), np.sin(th), "\n".join(_wrap(label, 10)), ha="center",
+                             va="center", fontsize=9.2, color=M["ink"], zorder=6, linespacing=1.15))
+    fig = ax.figure
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    inv = ax.transData.inverted()
+    boxes = []
+    for t in texts:
+        bb = t.get_window_extent(rend).expanded(1.0, 1.0)
+        (x0, y0), (x1, y1) = inv.transform((bb.x0, bb.y0)), inv.transform((bb.x1, bb.y1))
+        boxes.append((x0 - 0.05, y0 - 0.05, x1 + 0.05, y1 + 0.05))
+
+    def inside(th, b):
+        px, py = np.cos(th), np.sin(th)
+        return b[0] <= px <= b[2] and b[1] <= py <= b[3]
+
+    dashed = wheel.get("dashed", False)
+    for j in range(n):
+        a, b = angles[j], angles[j] - 2 * np.pi / n
+        while inside(a, boxes[j]) and a > b:
+            a -= 0.01
+        nb = boxes[(j + 1) % n]
+        while inside(b, nb) and b < a:
+            b += 0.01
+        span = a - b
+        if span < 0.12:
+            continue
+        ax.add_patch(FancyArrowPatch(
+            (np.cos(a), np.sin(a)), (np.cos(b), np.sin(b)),
+            connectionstyle=f"arc3,rad={-np.tan(span / 4):.4f}", arrowstyle="-|>",
+            mutation_scale=10, color="#595959", lw=1.1, ls=(0, (3, 2)) if dashed else "-", zorder=2))
+    if wheel.get("caption"):
+        ax.text(0, -1.45, "\n".join(_wrap(wheel["caption"], 26)), ha="center", va="center",
+                fontsize=9.4, color=M["navy"], zorder=6, linespacing=1.2)
+
+
+def flywheel(wheels, title=None, source=None, number=None, hub_color=None, out=None, figsize=None):
+    """Positive-feedback loops: each wheel is a hub with 3–7 nodes chained clockwise by arrows.
+
+    wheels: [{"title": "收入持续增长：", "key": "流量飞轮", "center": "增长",
+              "nodes": ["更低成本", "更低价格", "更好体验", "更多流量"], "caption": "规模效应",
+              "dashed": false}]  — the first node sits at twelve o'clock."""
+    M = MONO
+    _check_cjk(title, source, *[w.get("title", "") + "".join(w["nodes"]) for w in wheels])
+    k = len(wheels)
+    figsize = figsize or (3.7 * k + 0.5, 4.9)
+    fig, (L, B, W, H) = _diagram_canvas(figsize, title, source, number)
+    w = W / k
+    for i, wh in enumerate(wheels):
+        ax = fig.add_axes([L + i * w, B, w, H])
+        _draw_wheel(ax, wh, hub_color or M["navy"])
+        if i:
+            fig.add_artist(Line2D([L + i * w, L + i * w], [B + H * 0.12, B + H * 0.88], color="#D9D9D9",
+                                  lw=0.8, ls=(0, (3, 3)), transform=fig.transFigure))
+    return _save(fig, out)
+
+
+# --------------------------------------------------------------------------
+# Recipe 14 — tiers: business models stacked by how easily they turn traffic into money
+# --------------------------------------------------------------------------
+def tiers(levels, title=None, source=None, number=None, trend=None, highlight=None, out=None,
+          figsize=(9.6, 5.4)):
+    """Layers of a concept, top to bottom. Each layer has a tag on the left, a row of items and
+    a bracketed verdict on the right; an optional arrow on the far right names the direction.
+
+    levels: [{"label": "第一层", "items": [{"name": "搜索", "note": "流量广告", "size": "千亿美元"}],
+              "side": "易变现"}, …]  top → bottom.   trend: "越往下，变现越难"."""
+    M = MONO
+    _check_cjk(title, source, trend, *[lv.get("label", "") for lv in levels])
+    fig, rect = _diagram_canvas(figsize, title, source, number)
+    ax = fig.add_axes(rect)
+    ax.axis("off")
+    n = len(levels)
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, n)
+    hl = set([highlight] if isinstance(highlight, str) else (highlight or []))
+    fig.canvas.draw()
+    bb = ax.get_window_extent(fig.canvas.get_renderer())
+    aspect = (bb.width / 10) / (bb.height / n)
+    x_lo, x_hi = 1.35, 7.85 if trend else 8.35
+    for r, lv in enumerate(levels):
+        yc = n - r - 0.5
+        if r:
+            ax.plot([0.1, 9.9], [n - r, n - r], color="#E3E3E3", lw=0.8, zorder=1)
+        ax.text(0.15, yc, lv.get("label", ""), ha="left", va="center", fontsize=10.5,
+                fontweight="bold", fontstyle="italic", color="#595959")
+        items = lv.get("items", [])
+        m = max(1, len(items))
+        slot = (x_hi - x_lo) / m
+        bw = min(2.3, slot - 0.22)
+        for j, it in enumerate(items):
+            xc = x_lo + slot * (j + 0.5)
+            on = it.get("name") in hl
+            ax.add_patch(FancyBboxPatch((xc - bw / 2, yc - 0.34), bw, 0.68,
+                                        boxstyle="round,pad=0,rounding_size=0.12",
+                                        mutation_aspect=aspect,
+                                        fc=M["highlight"] if on else "#F3F5FA",
+                                        ec=M["navy"] if on else "#C9D3EA", lw=1.0, zorder=3))
+            rows = [(it.get("name", ""), 11, M["navy"], "bold")]
+            if it.get("note"):
+                rows.append((it["note"], 9, M["alert"], "normal"))
+            if it.get("size"):
+                rows.append((it["size"], 8, "#808080", "normal"))
+            hts = [s * 1.5 for _, s, _, _ in rows]
+            total = sum(hts)
+            y = yc + total / 2 / (bb.height / n * 72 / fig.dpi)
+            for (txt, s, c, wgt), h in zip(rows, hts):
+                step = h / (bb.height / n * 72 / fig.dpi)
+                ax.text(xc, y - step / 2, txt, ha="center", va="center", fontsize=s, color=c,
+                        fontweight=wgt, zorder=4)
+                y -= step
+        if lv.get("side"):
+            xs = x_hi + 0.12
+            ax.plot([xs, xs + 0.08, xs + 0.08, xs], [yc + 0.36, yc + 0.36, yc - 0.36, yc - 0.36],
+                    color="#8C8C8C", lw=0.9, zorder=2)
+            ax.text(xs + 0.2, yc, "\n".join(_wrap(lv["side"], 8)), ha="left", va="center",
+                    fontsize=9.5, color=M["ink"], linespacing=1.2)
+    if trend:
+        ax.annotate("", xy=(9.75, 0.08), xytext=(9.75, n - 0.08),
+                    arrowprops=dict(arrowstyle="-|>", color=M["alert"], lw=1.3, mutation_scale=14))
+        cjk = bool(_CJK.search(trend))
+        ax.text(9.6, n / 2, "\n".join(trend.replace("，", "")) if cjk else trend, ha="right",
+                va="center", rotation=0 if cjk else -90, fontsize=9.6, color=M["alert"],
+                fontweight="bold", linespacing=1.05)
+    return _save(fig, out)
+
+
+# --------------------------------------------------------------------------
+# Recipe 15 — donuts: structure of one total, or of several totals side by side
+# --------------------------------------------------------------------------
+_DONUT_GREYS = ["#D9D9D9", "#BDBDBD", "#A3A3A3", "#8A8A8A", "#707070", "#5A5A5A"]
+
+
+def _donut_colors(parts, highlight):
+    hl = [highlight] if isinstance(highlight, str) else list(highlight or [])
+    accent = dict(zip(hl, (MONO["navy"], MONO["sky"])))
+    greys = iter(_DONUT_GREYS)
+    return {p: accent.get(p) or next(greys, "#E6E6E6") for p in parts}
+
+
+def _draw_donut(ax, parts, values, highlight=None, center=None, value_fmt="%", colors=None,
+                subtitle=None, marks=None):
+    M = MONO
+    v = np.array(values, dtype=float)
+    share = v / v.sum() * 100 if v.sum() else v
+    cmap = colors or _donut_colors(parts, highlight)
+    ax.axis("off")
+    ax.set_aspect("equal")
+    ax.pie(v, startangle=90, counterclock=False, colors=[cmap[p] for p in parts],
+           wedgeprops=dict(width=0.30, edgecolor="white", linewidth=1.4))
+    ax.set_xlim(-1.75, 1.75)
+    ax.set_ylim(-1.3, 1.42 if subtitle else 1.3)
+    if center:
+        ax.text(0, 0, center, ha="center", va="center", fontsize=10.5, fontweight="bold",
+                color=M["ink"], linespacing=1.2)
+    if subtitle:
+        ax.text(0, 1.36, subtitle, ha="center", va="center", fontsize=10, fontweight="bold",
+                color=M["ink"])
+    vf = fmt(value_fmt)
+    start = np.pi / 2
+    placed = {"L": [], "R": []}
+    ends = []
+    for p, s in zip(parts, share):
+        mid = start - s / 100 * np.pi            # clockwise
+        start -= s / 100 * 2 * np.pi
+        side = "R" if np.cos(mid) >= 0 else "L"
+        ends.append((p, s, mid, side))
+    fig = ax.figure
+    fig.canvas.draw()
+    px_per = ax.get_window_extent(fig.canvas.get_renderer()).height / (ax.get_ylim()[1] - ax.get_ylim()[0])
+    gap = 12 * fig.dpi / 72 / px_per
+    for side in ("L", "R"):
+        group = sorted([e for e in ends if e[3] == side], key=lambda e: -np.sin(e[2]))
+        last = 1e9
+        for p, s, mid, _ in group:
+            y = min(1.12 * np.sin(mid), last - gap)
+            last = y
+            placed[side].append((p, s, mid, y))
+    for side, items in placed.items():
+        sgn = 1 if side == "R" else -1
+        for p, s, mid, y in items:
+            x0, y0 = np.cos(mid) * 1.0, np.sin(mid) * 1.0
+            xl = sgn * max(abs(np.cos(mid)) * 1.12, 1.08)
+            ax.plot([x0, xl, xl + sgn * 0.08], [y0, y, y], color="#A6A6A6", lw=0.7, zorder=2)
+            strong = cmap[p] in (M["navy"], M["sky"])
+            ax.text(xl + sgn * 0.11, y, f"{p} {vf(s)}", ha="left" if side == "R" else "right",
+                    va="center", fontsize=9.2, color=M["navy"] if strong else M["ink"],
+                    fontweight="bold" if strong else "normal", zorder=5)
+
+
+def donuts(rings, title=None, source=None, unit=None, number=None, highlight=None, value_fmt="%",
+           notes=None, notes_title=None, out=None, figsize=None):
+    """One or more rings side by side; the same part keeps the same colour in every ring.
+
+    rings: [{"subtitle": "收入", "parts": ["商品销售", "服务收入"], "values": [85, 15],
+             "center": "收入\\n100%"}, …]   highlight: part name(s), two at most."""
+    _check_cjk(title, source, *[r.get("subtitle", "") + "".join(r["parts"]) for r in rings])
+    k = len(rings)
+    allparts = []
+    for r in rings:
+        allparts += [p for p in r["parts"] if p not in allparts]
+    cmap = _donut_colors(allparts, highlight)
+    figsize = figsize or (3.9 * k + 0.6, 4.4)
+    figsize, side = _prep_notes(notes, figsize)
+    fig, ax0 = _frame_mono(figsize, _numbered(title, number), source, unit, side=side)
+    floor, ceil = ax0._ic_bounds
+    right = (0.04 + 0.92 * (1 - side) - 0.01) if side else 0.96
+    if side:
+        ax0_side = ax0._ic_side
+    ax0.remove()
+    w = (right - 0.04) / k
+    for i, r in enumerate(rings):
+        ax = fig.add_axes([0.04 + i * w, floor + 0.01, w, ceil - floor - 0.03])
+        _draw_donut(ax, r["parts"], r["values"], center=r.get("center"), value_fmt=value_fmt,
+                    colors=cmap, subtitle=r.get("subtitle"))
+        if notes and i == 0:
+            ax._ic_side = ax0_side
+            holder = ax
+    if notes:
+        _side_notes(fig, holder, notes, notes_title)
+    return _save(fig, out)
+
+
+# --------------------------------------------------------------------------
+# Recipe 16 — stacked components with a total line, one or two companies side by side
+# --------------------------------------------------------------------------
+def _draw_stacked_total(ax, x, groups, yfmt=None, total_fmt=None, labels=None, colors=None,
+                        marks=None, legend=True):
+    M = MONO
+    x = list(x)
+    n = len(x)
+    g = len(groups)
+    bases = colors or [M["navy"], M["salmon"], "#7F7F7F"]
+    width = 0.74 / g
+    tf = fmt(total_fmt or yfmt)
+    labels = labels if labels is not None else ("all" if g == 1 else "ends")
+    entries = []
+    totals_all = {}
+    for gi, (gname, layers) in enumerate(groups.items()):
+        names = list(layers)
+        shades = ramp(bases[gi % len(bases)], len(names) + 1)[:len(names)]
+        off = (gi - (g - 1) / 2) * width
+        bottom = np.zeros(n)
+        for li, name in enumerate(names):
+            v = np.nan_to_num(np.array(layers[name], dtype=float))
+            ax.bar(np.arange(n) + off, v, bottom=bottom, width=width * 0.92, color=shades[li],
+                   edgecolor="white", lw=0.5, zorder=3)
+            bottom += v
+        totals_all[gname] = bottom
+        c = bases[gi % len(bases)]
+        ax.plot(np.arange(n) + off, bottom, color=c, lw=1.6, marker="o", ms=3.6, zorder=5)
+        pick = range(n) if labels == "all" else ([0, n - 1] if labels == "ends" else [])
+        for i in pick:
+            ax.annotate(tf(bottom[i]), (i + off, bottom[i]), xytext=(0, 6), textcoords="offset points",
+                        ha="center", va="bottom", fontsize=8.8, fontweight="bold", color=c, zorder=7,
+                        path_effects=[pe.withStroke(linewidth=2.4, foreground="white")])
+        entries.append([(Line2D([0], [0], color=c, lw=1.6, marker="o", ms=3.6), f"{gname}合计"
+                         if _CJK.search(str(gname)) else f"{gname} total")] +
+                       [(Patch(facecolor=shades[li]), nm) for li, nm in enumerate(names)])
+    ax.set_xlim(-0.6, n - 0.4)
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(x, fontsize=9.5, color=M["tick"])
+    top = max(t.max() for t in totals_all.values())
+    ax.set_ylim(0, top * 1.16)
+    ax.yaxis.set_major_locator(MaxNLocator(7, steps=[1, 2, 2.5, 5, 10]))
+    ax.yaxis.set_major_formatter(_tickfmt(yfmt))
+    if legend:
+        cols = max(len(e) for e in entries)
+        hs, ns = [], []
+        for col in range(cols):                       # column-major fill → one row per company
+            for e in entries:
+                h, nm = e[col] if col < len(e) else (Patch(alpha=0), "")
+                hs.append(h)
+                ns.append(nm)
+        ax.legend(hs, ns, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=cols, frameon=False,
+                  fontsize=9, handlelength=1.4, columnspacing=1.2, handletextpad=0.5)
+    _draw_marks(ax, x, marks, totals_all)
+
+
+def stacked_total(x, groups, title=None, source=None, unit=None, number=None, yfmt=None,
+                  total_fmt=None, labels=None, colors=None, marks=None, notes=None, notes_title=None,
+                  out=None, figsize=(8.0, 4.9)):
+    """Components stacked into a total, the total drawn as a line through the bar tops; two
+    companies side by side in navy and salmon shades.
+
+    groups: {"A 公司": {"研发": [...], "折旧": [...]}, "B 公司": {...}}  layers bottom → top.
+    labels: "all" (default with one company), "ends" (default with two), or null."""
+    _check_cjk(title, source, unit, *groups, *x)
+    figsize, side = _prep_notes(notes, figsize)
+    fig, ax = _frame_mono(figsize, _numbered(title, number), source, unit, side=side)
+    _draw_stacked_total(ax, x, groups, yfmt, total_fmt, labels, colors, marks)
+    _fit(ax)
+    if notes:
+        _side_notes(fig, ax, notes, notes_title)
+    return _save(fig, out)
+
+
+def _panel_donut(ax, parts, values, highlight=None, center=None, value_fmt="%"):
+    _draw_donut(ax, parts, values, highlight=highlight, center=center, value_fmt=value_fmt)
+
+
+_PANEL_DRAWERS.update(waterfall=_draw_waterfall, aligned=_draw_aligned, donut=_panel_donut,
+                      stacked_total=_draw_stacked_total)
 
 
 # --------------------------------------------------------------------------
@@ -1863,6 +2216,10 @@ RECIPES = {
     "aligned_compare": aligned_compare,
     "process_cost": process_cost,
     "share_compare": share_compare,
+    "flywheel": flywheel,
+    "tiers": tiers,
+    "donuts": donuts,
+    "stacked_total": stacked_total,
 }
 
 

@@ -1,8 +1,8 @@
-# 十二个画法
+# 十六个画法
 
 每个画法都对应 `scripts/insight_charts.py` 里的一个同名函数，也是 JSON 规格里 `"recipe"` 的取值。所有函数都接受 `out="文件名"`。成品见 `assets/`，规格见 `examples/`。
 
-画法 1 到 7 是基础款，8 到 12 是 0.2.0 新增的「研报整页」画法：分阶段、拆利润、对齐口径、流程成本、结构对比。多个画法共用的强调记号、时代条、旁注写在文末「通用参数」里。
+画法 1 到 7 是基础款，8 到 12 是 0.2.0 新增的「研报整页」画法：分阶段、拆利润、对齐口径、流程成本、结构对比；13 到 16 是 0.3.0 新增的：拆分加总和线、环形构成图、飞轮图、分层图。多个画法共用的强调记号、时代条、旁注写在文末「通用参数」里。
 
 ---
 
@@ -126,6 +126,12 @@
 | `lines` | 主角对照线，线尾直接标名字。`series` 里第一条是藏青（主角），第二条是肉橙（对照），之后是灰 | `x` `series` `yfmt` `ylim` `steps`（阶梯线）`colors` |
 | `waterfall` | 拆分瀑布 | 同画法 9 的 `steps` `value_fmt` `highlight` |
 | `aligned` | 按发展年份对齐的线 | 同画法 10 的 `series` `xlabel` `yfmt` `labels` |
+| `donut` | 单个环形构成图 | `parts` `values` `highlight` `center` `value_fmt` |
+| `stacked_total` | 拆分加总和线 | 同画法 13 的 `x` `groups` `yfmt` `total_fmt` `labels` |
+
+`donut` 和 `waterfall` 放在一组里，就是「收入结构加分部估值」的一页：左边看收入从哪来，右边看每块值多少钱、合计多少。
+
+![](../assets/zh_sotp_panels.png)
 
 `bar_line` `bars` `area` `lines` 四种面板都接受 `marks`。几个面板用同一种虚线框圈出同一段时间（例如「下行期」「恢复期」），读者一眼就能把四张图对上：
 
@@ -345,11 +351,107 @@
 
 ---
 
+## 13. `stacked_total` 拆分加总和线
+
+![](../assets/zh_stacked_total.png)
+
+**什么时候用**：几项投入（研发、折旧摊销、股权激励）加起来才是你要讲的总量，而且要和对手逐年比。柱子里看构成，柱顶的线看总量走势，两家公司一深蓝一肉橙并排。
+
+**什么时候别用**：只有总量没有构成（用 `bar_line` 或 `lines`）；构成超过四项（合并小项）。
+
+| 参数 | 含义 |
+|---|---|
+| `x` | 横轴标签，常配合「第 N 年」做按发展年份对齐 |
+| `groups` | `{"A 公司": {"研发": […], "折旧摊销": […]}, "B 公司": {…}}`，各项从下到上；一家或两家 |
+| `labels` | 总量数字标在哪：`"all"`（一家时默认）、`"ends"`（两家时默认，只标首尾）、`null` |
+| `yfmt` `total_fmt` `colors` | 纵轴格式、总量数字格式、两家的主色 |
+| `marks` `notes` `notes_title` | 见「通用参数」 |
+| `title` `source` `unit` `number` | 同前 |
+
+**要点**
+- 每一项不标数字，只标总量。原样照搬「每一格都标数」，图会挤得读不出来。
+- 图例自动排成两行，一家公司一行，颜色深浅和柱子里的上下顺序一致。
+- 来源行写清楚总量的口径，例如「长期投入＝研发＋折旧摊销＋股权激励，占当年收入比例」。
+
+---
+
+## 14. `donuts` 环形构成图
+
+![](../assets/zh_donuts.png)
+
+**什么时候用**：一个总数由哪几块构成。最有用的是两个环并排：收入构成和毛利构成，读者一眼看出「收入占比小、利润占比大」的那一块。
+
+**什么时候别用**：构成超过六块（合并成「其他」）；要比较的是变化而不是构成（用堆叠柱）。
+
+| 参数 | 含义 |
+|---|---|
+| `rings` | `[{"subtitle": "收入构成", "parts": [...], "values": [...], "center": "收入"}, …]`，一到三个环 |
+| `highlight` | 要上色的部分（最多两个，第一个藏青、第二个天蓝），所有环共用 |
+| `value_fmt` | 标签里的占比格式，默认整数百分比 |
+| `notes` `notes_title` | 见「通用参数」 |
+| `title` `source` `unit` `number` | 同前 |
+
+**要点**
+- 只给主角上色，其余是由浅到深的灰。同一部分在每个环里颜色相同。
+- 标签写在环外，带引线，名字和占比在一起，不用图例。
+- 用环不用实心饼，中间可以写这个环是什么（`center`）。
+
+---
+
+## 15. `flywheel` 飞轮图
+
+![](../assets/zh_flywheel.png)
+
+**什么时候用**：讲正反馈的商业逻辑，A 带来 B，B 带来 C，最后又回到 A。可以一个飞轮，也可以两三个并排，说明几个飞轮各自转、又互相加速。
+
+**什么时候别用**：链条没有闭环（那是流程，用 `process_cost` 或文字）；节点超过七个（读者记不住）。
+
+| 参数 | 含义 |
+|---|---|
+| `wheels` | `[{"title": "收入增长：", "key": "流量飞轮", "center": "增长", "nodes": ["更低成本", …], "caption": "规模越大，成本越低", "dashed": false}]` |
+| `nodes` | 三到七个节点，第一个在正上方，按顺时针排 |
+| `title` `key` | 飞轮上方的标题，`title` 黑色、`key` 红色，排在同一行 |
+| `center` `caption` | 中心圆里的字、飞轮下方的一句话 |
+| `dashed` | 箭头用虚线，适合「还在形成中」的飞轮 |
+| `hub_color` | 中心圆颜色，默认藏青 |
+| `title` `source` `number` | 整张图的标题、来源、图号 |
+
+**要点**
+- 节点写名词短语，四到六个字，最好都用「更……」开头，读者一看就知道是正反馈。
+- 下方的 `caption` 写这个飞轮的核心机制，一句话。
+- 几个飞轮并排时，标题格式统一成「××增长：××飞轮」。
+
+---
+
+## 16. `tiers` 分层图
+
+![](../assets/zh_tiers.png)
+
+**什么时候用**：几类业务按一个维度分成几层，比如变现难易、壁垒高低、投入轻重。每层左边写层名，中间放几个业务，右边写这一层的特点，最右边一根红箭头说明越往下越怎样。
+
+**什么时候别用**：层与层之间没有高低之分（用表格）；每层超过四个业务（框太挤）。
+
+| 参数 | 含义 |
+|---|---|
+| `levels` | `[{"label": "第一层", "items": [{"name": "搜索", "note": "流量广告", "size": "千亿级"}], "side": "易变现"}, …]`，从上到下 |
+| `items` | 每个业务一个框：`name` 藏青加粗，`note` 红字写收入方式，`size` 灰字写体量 |
+| `side` | 这一层的特点，写在右侧括号旁 |
+| `trend` | 最右边红箭头旁的一句话，中文会竖排 |
+| `highlight` | 要突出的业务名，框填淡紫蓝 |
+| `title` `source` `number` | 同前 |
+
+**要点**
+- 主角所在的那一个框用 `highlight`，其余保持浅色。
+- `side` 和 `trend` 都是结论，`side` 讲这一层，`trend` 讲整体方向。
+- 体量只写量级（千亿级、万亿级），具体数字放正文或表格。
+
+---
+
 ## 通用参数：强调记号、时代条、旁注
 
 ### `marks` 强调记号
 
-`trend_events` `stacked_family` `bar_line` `area_highlight` `phase_trend` `waterfall` `aligned_compare` 七个画法，以及 `bar_line` `bars` `area` `lines` `waterfall` `aligned` 六种面板，都接受 `marks` 列表。位置用横轴标签或下标。
+`trend_events` `stacked_family` `bar_line` `area_highlight` `phase_trend` `waterfall` `aligned_compare` `stacked_total` 八个画法，以及 `bar_line` `bars` `area` `lines` `waterfall` `aligned` `stacked_total` 七种面板，都接受 `marks` 列表。位置用横轴标签或下标。
 
 | 写法 | 画出来是什么 | 什么时候用 |
 |---|---|---|
@@ -368,7 +470,7 @@
 
 ### `notes` 旁注栏
 
-mono 主题的 `bar_line`、`area_highlight`、`waterfall`、`aligned_compare`、`share_compare` 接受 `notes`（字符串列表）和 `notes_title`。图的右侧会多出一栏，每条前面有编号圆点，和图上的 `num` 记号或 `share_compare` 的 `numbers` 对应。画布会自动加宽，图本身的大小不变。
+mono 主题的 `bar_line`、`area_highlight`、`waterfall`、`aligned_compare`、`share_compare`、`stacked_total`、`donuts` 接受 `notes`（字符串列表）和 `notes_title`。图的右侧会多出一栏，每条前面有编号圆点，和图上的 `num` 记号或 `share_compare` 的 `numbers` 对应。画布会自动加宽，图本身的大小不变。
 
 - 旁注最多四五条，每条不超过两行。
 - 旁注写结论，不写图上已经看得到的数字罗列。

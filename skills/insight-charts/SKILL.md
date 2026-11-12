@@ -1,11 +1,11 @@
 ---
 name: insight-charts
-description: Draw research-report-quality charts with matplotlib in two house styles (deep-teal data-vendor style, greyscale sell-side style). Use whenever the user asks for a chart, figure, plot, 图表, 画图, 配图, 可视化, or wants data in a report, deck or article to look professional — trend lines with event dividers, family-coloured stacked bars, bar+line combos, 2x2 panel grids, scenario fans with a value-driver table, capability ladders with stage icons, stacked areas with one highlighted layer, phase charts with dashed boxes and one-line verdicts, profit bridges (waterfalls), histories aligned by year of development, process flows with cost bars, and structure comparisons with numbered side notes; plus emphasis marks (dashed box, red cross, pin, numbered dot) and era strips. Also covers when to place a chart, how to write its title and caption, and how to lay out a page that makes one point.
+description: Draw research-report-quality charts with matplotlib in two house styles (deep-teal data-vendor style, greyscale sell-side style). Use whenever the user asks for a chart, figure, plot, 图表, 画图, 配图, 可视化, or wants data in a report, deck or article to look professional — trend lines with event dividers, family-coloured stacked bars, bar+line combos, 2x2 panel grids, scenario fans with a value-driver table, capability ladders with stage icons, stacked areas with one highlighted layer, phase charts with dashed boxes and one-line verdicts, profit bridges (waterfalls), histories aligned by year of development, process flows with cost bars, structure comparisons with numbered side notes, stacked components with a total line, donut rings, flywheels and tier diagrams; plus emphasis marks (dashed box, red cross, pin, numbered dot) and era strips. Also covers when to place a chart, how to write its title and caption, and how to lay out a page that makes one point.
 ---
 
 # insight-charts：研报级图表
 
-把数据画成「一眼能读出结论」的图。本技能包含三样东西：一套配色与版式规范、十二个现成画法和一组强调记号（`scripts/insight_charts.py`）、一套「什么时候放图、标题怎么写、一页怎么排」的写作规则。
+把数据画成「一眼能读出结论」的图。本技能包含三样东西：一套配色与版式规范、十六个现成画法和一组强调记号（`scripts/insight_charts.py`）、一套「什么时候放图、标题怎么写、一页怎么排」的写作规则。
 
 ## 工作流程
 
@@ -32,6 +32,10 @@ description: Draw research-report-quality charts with matplotlib in two house st
 | 两家公司处在不同年代，想比「同一发展阶段」 | `aligned_compare` | mono |
 | 一个流程的各环节，以及每个环节花了多少钱 | `process_cost` | mono |
 | 两三个主体的结构（资产、收入、成本）对比，配编号结论 | `share_compare` | mono |
+| 几项投入加起来看总量，还要和对手逐年比 | `stacked_total` | mono |
+| 一个总数由哪几块构成，或者收入和利润的构成对比 | `donuts` | mono |
+| 正反馈的商业逻辑：A 带来 B，B 又带来 A | `flywheel` | mono |
+| 几类业务按某个维度分层（变现难易、壁垒高低） | `tiers` | mono |
 
 **强调记号**：上面大多数画法都接受 `marks`，在图上加虚线框（圈出一段）、红叉（否定一种外推）、贴线小牌（把事件贴在曲线上）、编号圆点（和旁注对应）。`trend_events` 和 `phase_trend` 还接受 `eras`，在图上方画一条「时代条」，最后一段可以带问号。mono 单图接受 `notes`，在右侧放一栏编号结论，做到图文同屏。写法见 `references/recipes.md` 的「通用参数」。
 
@@ -107,7 +111,7 @@ ic.trend_events(x, series, events=[{"at": "May-25", "label": "Opus 4.5"}],
 
 ## 参考文件
 
-- `references/recipes.md`：十二个画法的适用场景、参数表、通用参数（强调记号、时代条、旁注）、常见错误。
+- `references/recipes.md`：十六个画法的适用场景、参数表、通用参数（强调记号、时代条、旁注）、常见错误。
 - `references/style-tokens.md`：两套主题的色值、字号、线宽、留白。要用别的绘图库复刻本风格时读它。
 - `references/writing-rhythm.md`：什么时候该放图、放在哪、标题与前后文怎么写，一页怎么排、强调怎么用、哪些做法别学。
 - `examples/*.json`、`assets/*.png`：规格样例与成品。

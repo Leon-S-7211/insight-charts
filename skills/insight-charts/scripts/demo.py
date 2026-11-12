@@ -366,6 +366,98 @@ def spec_zh_cycle_panels():
 SPECS.update(zh_cycle_panels=spec_zh_cycle_panels)
 
 
+# ---- 0.3.0: concept diagrams, rings, stacked totals ----
+def spec_zh_flywheel():
+    return {
+        "recipe": "flywheel", "number": 8,
+        "title": "三个飞轮互相加速：流量带来规模，规模带来现金，现金再投进会员权益",
+        "source": "资料来源：作者整理",
+        "wheels": [
+            {"title": "收入增长：", "key": "流量飞轮", "center": "增长", "dashed": True,
+             "nodes": ["更低成本", "更低价格", "更好体验", "更多流量", "更多商家", "更多选品"],
+             "caption": "规模越大，成本越低"},
+            {"title": "现金流增长：", "key": "资本飞轮", "center": "规模",
+             "nodes": ["更快周转", "更多现金", "更多投入", "更低成本"],
+             "caption": "现金流越好，融资越容易"},
+            {"title": "用户增长：", "key": "会员飞轮", "center": "留存",
+             "nodes": ["会员权益", "购买频次", "数据积累", "精准推荐"],
+             "caption": "权益越多，用户越离不开"},
+        ],
+    }
+
+
+def spec_zh_tiers():
+    return {
+        "recipe": "tiers", "number": 9,
+        "title": "越靠近流量的业务越容易变现，越往下越依赖运营和重投入",
+        "source": "资料来源：作者整理。注：规模为市场体量的量级示意",
+        "trend": "越往下，变现越难",
+        "highlight": "电商",
+        "levels": [
+            {"label": "第一层", "side": "易变现",
+             "items": [{"name": "搜索", "note": "流量广告", "size": "千亿级"},
+                       {"name": "游戏", "note": "虚拟道具", "size": "千亿级"},
+                       {"name": "短视频", "note": "流量广告", "size": "千亿级"}]},
+            {"label": "第二层", "side": "重运营",
+             "items": [{"name": "电商", "note": "佣金＋广告", "size": "万亿级"},
+                       {"name": "本地生活", "note": "佣金＋广告", "size": "千亿级"}]},
+            {"label": "第三层", "side": "重运营＋重投入",
+             "items": [{"name": "云服务", "note": "基础设施服务", "size": "千亿级"},
+                       {"name": "物流", "note": "基础设施服务", "size": "千亿级"}]},
+        ],
+    }
+
+
+def spec_zh_donuts():
+    return {
+        "recipe": "donuts", "number": 10,
+        "title": "服务收入只占 15%，却贡献了近一半毛利",
+        "source": "资料来源：示意数据",
+        "highlight": "服务收入",
+        "rings": [
+            {"subtitle": "收入构成", "parts": ["商品销售", "服务收入"], "values": [85, 15], "center": "收入"},
+            {"subtitle": "毛利构成", "parts": ["商品销售", "服务收入"], "values": [52, 48], "center": "毛利"},
+        ],
+    }
+
+
+def spec_zh_sotp_panels():
+    return {"recipe": "panel_grid", "start_number": 11, "ncols": 2, "panels": [
+        {"kind": "donut", "title": "零售业务贡献六成收入", "source": "资料来源：示意数据",
+         "parts": ["零售", "物流", "健康", "科技", "其他"], "values": [61, 17, 9, 8, 5],
+         "highlight": "零售", "center": "收入\n构成"},
+        {"kind": "waterfall", "title": "分部估值合计 950 亿美元，零售占一半以上", "unit": "单位：亿美元",
+         "source": "资料来源：示意数据，作者测算",
+         "steps": [{"label": "零售", "value": 520}, {"label": "物流", "value": 110},
+                   {"label": "健康", "value": 70}, {"label": "科技", "value": 40},
+                   {"label": "投资", "value": 60}, {"label": "净现金", "value": 150},
+                   {"label": "合计", "kind": "subtotal"}],
+         "highlight": "零售"},
+    ]}
+
+
+def spec_zh_stacked_total():
+    y = [f"第{n}年" for n in range(1, 11)]
+    return {
+        "recipe": "stacked_total", "number": 13, "yfmt": "%", "total_fmt": "%1",
+        "title": "按发展年份对齐，A 公司每年的长期投入占收入 8.5%-13%，是 B 公司的两倍以上",
+        "source": "资料来源：示意数据。注：长期投入＝研发＋折旧摊销＋股权激励，占当年收入比例",
+        "x": y,
+        "groups": {
+            "A 公司": {"研发": [5, 5.5, 6, 6.2, 6.5, 6.8, 7, 7.2, 7.5, 8],
+                       "折旧摊销": [2.5, 2.6, 2.7, 2.8, 2.9, 3, 3, 3.1, 3.2, 3.3],
+                       "股权激励": [1, 1.1, 1.2, 1.2, 1.3, 1.4, 1.4, 1.5, 1.6, 1.7]},
+            "B 公司": {"研发": [1.5, 1.8, 2, 2.2, 2.4, 2.5, 2.6, 2.8, 2.9, 3],
+                       "折旧摊销": [1.2, 1.3, 1.4, 1.5, 1.5, 1.6, 1.7, 1.7, 1.8, 1.9],
+                       "股权激励": [0.8, 0.8, 0.9, 0.9, 1, 1, 1, 1.1, 1.1, 1.2]},
+        },
+    }
+
+
+SPECS.update(zh_flywheel=spec_zh_flywheel, zh_tiers=spec_zh_tiers, zh_donuts=spec_zh_donuts,
+             zh_sotp_panels=spec_zh_sotp_panels, zh_stacked_total=spec_zh_stacked_total)
+
+
 if __name__ == "__main__":
     os.makedirs(EX, exist_ok=True)
     os.makedirs(AS, exist_ok=True)

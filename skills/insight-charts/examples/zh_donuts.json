@@ -1,0 +1,33 @@
+{
+ "recipe": "donuts",
+ "number": 10,
+ "title": "服务收入只占 15%，却贡献了近一半毛利",
+ "source": "资料来源：示意数据",
+ "highlight": "服务收入",
+ "rings": [
+  {
+   "subtitle": "收入构成",
+   "parts": [
+    "商品销售",
+    "服务收入"
+   ],
+   "values": [
+    85,
+    15
+   ],
+   "center": "收入"
+  },
+  {
+   "subtitle": "毛利构成",
+   "parts": [
+    "商品销售",
+    "服务收入"
+   ],
+   "values": [
+    52,
+    48
+   ],
+   "center": "毛利"
+  }
+ ]
+}

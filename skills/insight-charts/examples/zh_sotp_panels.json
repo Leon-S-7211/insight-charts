@@ -1,0 +1,65 @@
+{
+ "recipe": "panel_grid",
+ "start_number": 11,
+ "ncols": 2,
+ "panels": [
+  {
+   "kind": "donut",
+   "title": "零售业务贡献六成收入",
+   "source": "资料来源：示意数据",
+   "parts": [
+    "零售",
+    "物流",
+    "健康",
+    "科技",
+    "其他"
+   ],
+   "values": [
+    61,
+    17,
+    9,
+    8,
+    5
+   ],
+   "highlight": "零售",
+   "center": "收入\n构成"
+  },
+  {
+   "kind": "waterfall",
+   "title": "分部估值合计 950 亿美元，零售占一半以上",
+   "unit": "单位：亿美元",
+   "source": "资料来源：示意数据，作者测算",
+   "steps": [
+    {
+     "label": "零售",
+     "value": 520
+    },
+    {
+     "label": "物流",
+     "value": 110
+    },
+    {
+     "label": "健康",
+     "value": 70
+    },
+    {
+     "label": "科技",
+     "value": 40
+    },
+    {
+     "label": "投资",
+     "value": 60
+    },
+    {
+     "label": "净现金",
+     "value": 150
+    },
+    {
+     "label": "合计",
+     "kind": "subtotal"
+    }
+   ],
+   "highlight": "零售"
+  }
+ ]
+}
