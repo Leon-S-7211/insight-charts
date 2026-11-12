@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-insight-charts",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Research-report-quality charts as an agent skill: two themes, sixteen matplotlib recipes (event-marked trends, family-coloured stacks, bar+line, panel grids, highlighted areas, scenario fans, capability ladders, phase charts, waterfalls, year-aligned comparisons, process costs, structure comparisons, stacked totals, donut rings, flywheels, tier diagrams), shared emphasis marks, plus rules for when to place a chart, how to title it and how to lay out a page.",
   "type": "module",
   "main": "index.js",

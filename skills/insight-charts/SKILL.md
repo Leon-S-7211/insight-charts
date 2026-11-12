@@ -34,8 +34,8 @@ description: Draw research-report-quality charts with matplotlib in two house st
 | 两三个主体的结构（资产、收入、成本）对比，配编号结论 | `share_compare` | mono |
 | 几项投入加起来看总量，还要和对手逐年比 | `stacked_total` | mono |
 | 一个总数由哪几块构成，或者收入和利润的构成对比 | `donuts` | mono |
-| 正反馈的商业逻辑：A 带来 B，B 又带来 A | `flywheel` | mono |
-| 几类业务按某个维度分层（变现难易、壁垒高低） | `tiers` | mono |
+| 正反馈的商业逻辑：A 带来 B，B 又带来 A；可以内外两圈交错，也可以画成向外长的螺旋 | `flywheel` | mono |
+| 几类业务按某个维度分层（变现难易、壁垒高低），层与层之间有流量或能力流动 | `tiers` | mono |
 
 **强调记号**：上面大多数画法都接受 `marks`，在图上加虚线框（圈出一段）、红叉（否定一种外推）、贴线小牌（把事件贴在曲线上）、编号圆点（和旁注对应）。`trend_events` 和 `phase_trend` 还接受 `eras`，在图上方画一条「时代条」，最后一段可以带问号。mono 单图接受 `notes`，在右侧放一栏编号结论，做到图文同屏。写法见 `references/recipes.md` 的「通用参数」。
 

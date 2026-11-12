@@ -31,7 +31,7 @@ from matplotlib.patches import (Circle, Ellipse, FancyArrowPatch, FancyBboxPatch
                                 Polygon, Rectangle)
 from matplotlib.ticker import FuncFormatter, MaxNLocator  # noqa: E402
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # --------------------------------------------------------------------------
 # Style tokens
@@ -1879,75 +1879,224 @@ def _two_tone(ax, x, y, first, second, size, transform=None, ha="center", colors
 # --------------------------------------------------------------------------
 # Recipe 13 — flywheel: nodes on a loop around a hub, one or more loops side by side
 # --------------------------------------------------------------------------
-def _draw_wheel(ax, wheel, hub_color):
-    M = MONO
-    nodes = wheel["nodes"]
-    n = len(nodes)
-    ax.set_xlim(-1.5, 1.5)
-    ax.set_ylim(-1.62, 1.5)
-    ax.set_aspect("equal")
-    ax.axis("off")
-    if wheel.get("title") or wheel.get("key"):
-        _two_tone(ax, 0, 1.40, wheel.get("title", ""), wheel.get("key", ""), 10.2)
-    ax.add_patch(Circle((0, 0), 0.40, fc=hub_color, ec="none", zorder=3))
-    ax.text(0, 0, "\n".join(_wrap(wheel.get("center", ""), 6)), ha="center", va="center",
-            fontsize=10.5, fontweight="bold", color="white", zorder=4, linespacing=1.15)
-    angles = [np.pi / 2 - 2 * np.pi * j / n for j in range(n)]
-    texts = []
-    for th, label in zip(angles, nodes):
-        texts.append(ax.text(np.cos(th), np.sin(th), "\n".join(_wrap(label, 10)), ha="center",
-                             va="center", fontsize=9.2, color=M["ink"], zorder=6, linespacing=1.15))
+def _polar(r, th):
+    return np.array([r * np.cos(th), r * np.sin(th)])
+
+
+def _sweep(rA, thA, rB, thB, bulge=0.0, direction="cw", n=220):
+    """Points from (rA, thA) to (rB, thB) turning cw/ccw, radius eased linearly plus a bulge."""
+    t = np.linspace(0, 1, n)
+    if direction == "cw":
+        d = (thA - thB) % (2 * np.pi) or 2 * np.pi
+        th = thA - d * t
+    else:
+        d = (thB - thA) % (2 * np.pi) or 2 * np.pi
+        th = thA + d * t
+    r = rA + (rB - rA) * t + bulge * np.sin(np.pi * t)
+    return np.c_[r * np.cos(th), r * np.sin(th)]
+
+
+def _trim(pts, box_a, box_b):
+    """Drop the points that fall inside the start and end label boxes (x0, y0, x1, y1)."""
+    def inside(p, b):
+        return b is not None and b[0] <= p[0] <= b[2] and b[1] <= p[1] <= b[3]
+    i, j = 0, len(pts) - 1
+    while i < j and inside(pts[i], box_a):
+        i += 1
+    while j > i and inside(pts[j], box_b):
+        j -= 1
+    return pts[i:j + 1]
+
+
+def _flow(ax, pts, color="#595959", lw=1.2, dashed=False, zorder=2, halo=True):
+    """A curve with a solid arrowhead; a white halo makes crossings read as over/under."""
+    if len(pts) < 6:
+        return
+    style = (0, (3.2, 2.2)) if dashed else "-"
+    fx = [pe.withStroke(linewidth=lw + 3.2, foreground="white")] if halo else None
+    ax.plot(pts[:-3, 0], pts[:-3, 1], color=color, lw=lw, ls=style, solid_capstyle="round",
+            zorder=zorder, path_effects=fx)
+    ax.add_patch(FancyArrowPatch(tuple(pts[-6]), tuple(pts[-1]), arrowstyle="-|>", mutation_scale=10 + lw * 1.5,
+                                 color=color, lw=lw, shrinkA=0, shrinkB=0, zorder=zorder + 0.1))
+
+
+def _label_boxes(ax, texts, pad=0.05):
     fig = ax.figure
     fig.canvas.draw()
     rend = fig.canvas.get_renderer()
     inv = ax.transData.inverted()
-    boxes = []
-    for t in texts:
-        bb = t.get_window_extent(rend).expanded(1.0, 1.0)
+    out = {}
+    for key, t in texts.items():
+        bb = t.get_window_extent(rend)
         (x0, y0), (x1, y1) = inv.transform((bb.x0, bb.y0)), inv.transform((bb.x1, bb.y1))
-        boxes.append((x0 - 0.05, y0 - 0.05, x1 + 0.05, y1 + 0.05))
+        out[key] = (x0 - pad, y0 - pad, x1 + pad, y1 + pad)
+    return out
 
-    def inside(th, b):
-        px, py = np.cos(th), np.sin(th)
-        return b[0] <= px <= b[2] and b[1] <= py <= b[3]
 
-    dashed = wheel.get("dashed", False)
-    for j in range(n):
-        a, b = angles[j], angles[j] - 2 * np.pi / n
-        while inside(a, boxes[j]) and a > b:
-            a -= 0.01
-        nb = boxes[(j + 1) % n]
-        while inside(b, nb) and b < a:
-            b += 0.01
-        span = a - b
-        if span < 0.12:
-            continue
-        ax.add_patch(FancyArrowPatch(
-            (np.cos(a), np.sin(a)), (np.cos(b), np.sin(b)),
-            connectionstyle=f"arc3,rad={-np.tan(span / 4):.4f}", arrowstyle="-|>",
-            mutation_scale=10, color="#595959", lw=1.1, ls=(0, (3, 2)) if dashed else "-", zorder=2))
-    if wheel.get("caption"):
-        ax.text(0, -1.45, "\n".join(_wrap(wheel["caption"], 26)), ha="center", va="center",
-                fontsize=9.4, color=M["navy"], zorder=6, linespacing=1.2)
+def _wheel_frame(ax, wheel, top):
+    """Header (two-tone title, bullets) and caption; returns the y where the drawing may start."""
+    M = MONO
+    y = top - 0.08
+    if wheel.get("title") or wheel.get("key"):
+        _two_tone(ax, 0, y, wheel.get("title", ""), wheel.get("key", ""), 10.4)
+        y -= 0.24
+    for b in wheel.get("bullets", []):
+        ax.text(-1.42, y, "·  " + b, ha="left", va="center", fontsize=8.8, color=M["ink"], zorder=6)
+        y -= 0.17
+    cap = wheel.get("caption")
+    if cap:
+        lines = cap if isinstance(cap, list) else [cap]
+        yy = -1.47
+        for k, ln in enumerate(lines):
+            ax.text(0, yy - k * 0.17, ln, ha="center", va="center", fontsize=9.4, color=M["navy"],
+                    zorder=6)
+    return y
+
+
+def _draw_wheel(ax, wheel, hub_color):
+    """Loops of nodes around a hub. Nodes shared between loops are placed once, so a second loop
+    cuts across the first; links add branches, spokes from the hub and long outside sweeps."""
+    M = MONO
+    nb = len(wheel.get("bullets", []))
+    top = 1.42 + 0.17 * nb
+    ax.set_xlim(-1.5, 1.5)
+    ax.set_ylim(-1.68 - (0.17 if isinstance(wheel.get("caption"), list) and len(wheel["caption"]) > 1 else 0),
+                top)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    _wheel_frame(ax, wheel, top)
+    loops = wheel.get("loops") or [{"nodes": wheel["nodes"], "dashed": wheel.get("dashed", False)}]
+    hub_r = wheel.get("hub_r", 0.36)
+    pos, edges = {}, {}
+    for L in loops:
+        names, r = L["nodes"], L.get("r", 1.0)
+        start = np.deg2rad(L.get("start", 90))
+        for j, nm in enumerate(names):
+            pos.setdefault(nm, (r, start - 2 * np.pi * j / len(names)))
+        for j, nm in enumerate(names):
+            if j == len(names) - 1 and L.get("closed", True) is False:
+                break
+            nxt = names[(j + 1) % len(names)]
+            edges.setdefault((nm, nxt), dict(dashed=L.get("dashed", False), color=L.get("color"),
+                                             lw=L.get("lw"), bulge=L.get("bulge", 0.0), dir="cw"))
+    for lk in wheel.get("links", []):
+        edges[(lk["from"], lk["to"])] = dict(dashed=lk.get("dashed", False), color=lk.get("color"),
+                                             lw=lk.get("lw"), bulge=lk.get("bulge", 0.0),
+                                             dir=lk.get("dir", "cw"))
+    ax.add_patch(Circle((0, 0), hub_r, fc=hub_color, ec="none", zorder=4))
+    ax.text(0, 0, "\n".join(_wrap(wheel.get("center", ""), 8)), ha="center", va="center",
+            fontsize=10.5, fontweight="bold", color="white", zorder=5, linespacing=1.15)
+    texts = {}
+    for nm, (r, th) in pos.items():
+        texts[nm] = ax.text(r * np.cos(th), r * np.sin(th), "\n".join(_wrap_soft(nm, 16)), ha="center",
+                            va="center", fontsize=9.2, color=M["ink"], zorder=7, linespacing=1.15,
+                            fontweight="bold" if wheel.get("bold_nodes") else "normal")
+    boxes = _label_boxes(ax, texts)
+    for (a, b), e in edges.items():
+        if a == "center":
+            rB, thB = pos[b]
+            pts = _sweep(hub_r * 0.5, thB + 0.9 * (1 if e["dir"] == "cw" else -1), rB, thB,
+                         e["bulge"], e["dir"])
+            pts = _trim(pts, None, boxes[b])
+            behind = True
+        else:
+            (rA, thA), (rB, thB) = pos[a], pos[b]
+            pts = _trim(_sweep(rA, thA, rB, thB, e["bulge"], e["dir"]), boxes[a], boxes[b])
+            behind = False
+        _flow(ax, pts, color=e["color"] or "#4D4D4D", lw=e["lw"] or (1.0 if e["dashed"] else 1.4),
+              dashed=e["dashed"], zorder=3 if behind else 2.5)
+
+
+def _multi_tone(ax, x, y, parts, ha="center", halo=True):
+    """Several runs of text on one line: parts = [(text, size, colour, weight), …]."""
+    fig = ax.figure
+    fx = [pe.withStroke(linewidth=3.2, foreground="white")] if halo else None
+    arts = [ax.text(x, y, t, fontsize=sz, color=c, fontweight=w, ha="left", va="baseline", zorder=8,
+                    path_effects=fx) for t, sz, c, w in parts if t]
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    widths = [a.get_window_extent(rend).width for a in arts]
+    total = sum(widths)
+    px = ax.transData.transform((x, y))[0] - {"center": total / 2, "left": 0, "right": total}[ha]
+    inv = ax.transData.inverted()
+    for a, wd in zip(arts, widths):
+        a.set_x(inv.transform((px, 0))[0])
+        px += wd
+    return arts
+
+
+def _draw_spiral(ax, wheel, hub_color):
+    """Businesses added ring by ring: the hub sits at the bottom and each turn of the spiral is
+    wider and higher than the last, so the rings fan out upward like a vase. Each stage's tag and
+    name sit on the crown of its own turn."""
+    M = MONO
+    nb = len(wheel.get("bullets", []))
+    top = 1.42 + 0.17 * nb
+    ax.set_xlim(-1.5, 1.5)
+    ax.set_ylim(-1.68, top)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    head = _wheel_frame(ax, wheel, top)
+    stages = wheel["stages"]
+    n = len(stages)
+    r0, r1, squash, hub_r = 0.40, 1.36, 0.36, 0.20
+    dr = (r1 - r0) / n
+    lift = 0.7 * dr
+    y_top = head - 0.06                                   # crown of the outermost turn
+    cy0 = max(-1.0, y_top - lift * (n - 0.5) - r1)
+    ax.add_patch(Circle((0, cy0), hub_r, fc=hub_color, ec="none", zorder=5))
+    ax.text(0, cy0, wheel.get("center", ""), ha="center", va="center", fontsize=9.6,
+            fontweight="bold", color="white", zorder=6)
+
+    def at(sv):
+        th = -np.pi / 2 - 2 * np.pi * sv                  # clockwise, starting at six o'clock
+        rr = r0 + dr * sv
+        yy = rr * np.sin(th)
+        yy = np.where(yy < 0, yy * squash, yy)
+        return np.c_[rr * np.cos(th), yy + cy0 + lift * sv]
+
+    shades = ramp(M["navy"], n + 2)[::-1][1:n + 1]       # pale inside, deep outside
+    cuts = [0.0] + [k + f for k in range(n) for f in (0.375, 0.75)]     # heads upper-left and right
+    for c0, c1 in zip(cuts[:-1], cuts[1:]):
+        k = min(n - 1, int((c0 + c1) / 2))
+        _flow(ax, at(np.linspace(c0, c1, 120)), color=shades[k], lw=1.0 + 1.5 * k / max(1, n - 1),
+              zorder=2 + k * 0.01)
+    for k, st in enumerate(stages):
+        cx, cyk = at(np.array([k + 0.5]))[0]
+        parts = [(st.get("tag", ""), 10.6, M["alert"], "bold"),
+                 ("  " + st.get("label", ""), 9.6, M["navy"], "bold")]
+        _multi_tone(ax, cx, cyk - 0.04, parts, ha="center")
+        if st.get("note"):
+            ax.text(cx, cyk - 0.13, st["note"], ha="center", va="center", fontsize=7.8, color="#7F7F7F",
+                    zorder=8, path_effects=[pe.withStroke(linewidth=2.6, foreground="white")])
 
 
 def flywheel(wheels, title=None, source=None, number=None, hub_color=None, out=None, figsize=None):
-    """Positive-feedback loops: each wheel is a hub with 3–7 nodes chained clockwise by arrows.
+    """Positive-feedback loops, one or several side by side.
 
-    wheels: [{"title": "收入持续增长：", "key": "流量飞轮", "center": "增长",
-              "nodes": ["更低成本", "更低价格", "更好体验", "更多流量"], "caption": "规模效应",
-              "dashed": false}]  — the first node sits at twelve o'clock."""
+    A wheel is either
+      {"title": "收入增长：", "key": "流量飞轮", "center": "增长", "bullets": ["…"],
+       "loops": [{"nodes": [...], "r": 1.0, "dashed": true, "start": 120},
+                 {"nodes": [...], "r": 0.6}],            # shared names cut across rings
+       "links": [{"from": "center" | node, "to": node, "bulge": 0.3, "dir": "cw", "dashed": false}],
+       "caption": "…" or ["…", "…"]}
+    or a spiral of stages growing outward:
+      {"kind": "spiral", "center": "增长", "stages": [{"tag": "2C", "label": "…", "note": "…"}, …]}
+    The short form {"nodes": [...]} still draws a single loop."""
     M = MONO
-    _check_cjk(title, source, *[w.get("title", "") + "".join(w["nodes"]) for w in wheels])
+    _check_cjk(title, source, *[str(w.get("title", "")) + str(w.get("key", "")) for w in wheels])
     k = len(wheels)
-    figsize = figsize or (3.7 * k + 0.5, 4.9)
+    figsize = figsize or (4.0 * k + 0.4, 5.4)
     fig, (L, B, W, H) = _diagram_canvas(figsize, title, source, number)
     w = W / k
     for i, wh in enumerate(wheels):
         ax = fig.add_axes([L + i * w, B, w, H])
-        _draw_wheel(ax, wh, hub_color or M["navy"])
+        if wh.get("kind") == "spiral":
+            _draw_spiral(ax, wh, hub_color or M["navy"])
+        else:
+            _draw_wheel(ax, wh, hub_color or M["navy"])
         if i:
-            fig.add_artist(Line2D([L + i * w, L + i * w], [B + H * 0.12, B + H * 0.88], color="#D9D9D9",
+            fig.add_artist(Line2D([L + i * w, L + i * w], [B + H * 0.10, B + H * 0.90], color="#D9D9D9",
                                   lw=0.8, ls=(0, (3, 3)), transform=fig.transFigure))
     return _save(fig, out)
 
@@ -1955,13 +2104,15 @@ def flywheel(wheels, title=None, source=None, number=None, hub_color=None, out=N
 # --------------------------------------------------------------------------
 # Recipe 14 — tiers: business models stacked by how easily they turn traffic into money
 # --------------------------------------------------------------------------
-def tiers(levels, title=None, source=None, number=None, trend=None, highlight=None, out=None,
-          figsize=(9.6, 5.4)):
+def tiers(levels, title=None, source=None, number=None, trend=None, highlight=None, links=None,
+          out=None, figsize=(9.6, 5.4)):
     """Layers of a concept, top to bottom. Each layer has a tag on the left, a row of items and
     a bracketed verdict on the right; an optional arrow on the far right names the direction.
 
     levels: [{"label": "第一层", "items": [{"name": "搜索", "note": "流量广告", "size": "千亿美元"}],
-              "side": "易变现"}, …]  top → bottom.   trend: "越往下，变现越难"."""
+              "side": "易变现"}, …]  top → bottom.   trend: "越往下，变现越难".
+    links: [{"from": "搜索", "to": "电商", "text": "流量导入", "bend": 0.2, "dashed": true}] —
+           red curved arrows between items, so traffic visibly flows from one layer into the next."""
     M = MONO
     _check_cjk(title, source, trend, *[lv.get("label", "") for lv in levels])
     fig, rect = _diagram_canvas(figsize, title, source, number)
@@ -1975,6 +2126,7 @@ def tiers(levels, title=None, source=None, number=None, trend=None, highlight=No
     bb = ax.get_window_extent(fig.canvas.get_renderer())
     aspect = (bb.width / 10) / (bb.height / n)
     x_lo, x_hi = 1.35, 7.85 if trend else 8.35
+    where = {}
     for r, lv in enumerate(levels):
         yc = n - r - 0.5
         if r:
@@ -1987,6 +2139,7 @@ def tiers(levels, title=None, source=None, number=None, trend=None, highlight=No
         bw = min(2.3, slot - 0.22)
         for j, it in enumerate(items):
             xc = x_lo + slot * (j + 0.5)
+            where[it.get("name")] = (xc, yc, bw)
             on = it.get("name") in hl
             ax.add_patch(FancyBboxPatch((xc - bw / 2, yc - 0.34), bw, 0.68,
                                         boxstyle="round,pad=0,rounding_size=0.12",
@@ -2012,6 +2165,24 @@ def tiers(levels, title=None, source=None, number=None, trend=None, highlight=No
                     color="#8C8C8C", lw=0.9, zorder=2)
             ax.text(xs + 0.2, yc, "\n".join(_wrap(lv["side"], 8)), ha="left", va="center",
                     fontsize=9.5, color=M["ink"], linespacing=1.2)
+    for lk in links or []:
+        (xa, ya, wa), (xb, yb, wb) = where[lk["from"]], where[lk["to"]]
+        if abs(ya - yb) < 1e-9:
+            sg = 1 if xb > xa else -1
+            p0, p1 = np.array([xa + sg * wa / 2, ya]), np.array([xb - sg * wb / 2, yb])
+        else:
+            sg = -1 if yb < ya else 1
+            p0, p1 = np.array([xa, ya + sg * 0.36]), np.array([xb, yb - sg * 0.36])
+        q0, q1 = ax.transData.transform(p0), ax.transData.transform(p1)   # bend in screen space
+        d = q1 - q0
+        ctrl = (q0 + q1) / 2 + lk.get("bend", 0.15) * np.array([-d[1], d[0]])
+        t = np.linspace(0, 1, 120)[:, None]
+        pts = ax.transData.inverted().transform((1 - t) ** 2 * q0 + 2 * (1 - t) * t * ctrl + t ** 2 * q1)
+        _flow(ax, pts, color=M["alert"], lw=1.0, dashed=lk.get("dashed", True), zorder=3.5, halo=False)
+        if lk.get("text"):
+            q = pts[len(pts) // 2]
+            ax.text(q[0] + 0.08, q[1], lk["text"], ha="left", va="center", fontsize=8.4, color=M["alert"],
+                    zorder=6, path_effects=[pe.withStroke(linewidth=2.6, foreground="white")])
     if trend:
         ax.annotate("", xy=(9.75, 0.08), xytext=(9.75, n - 0.08),
                     arrowprops=dict(arrowstyle="-|>", color=M["alert"], lw=1.3, mutation_scale=14))
