@@ -1,0 +1,53 @@
+{
+ "recipe": "process_cost",
+ "number": 4,
+ "unit": "占履约成本比例",
+ "title": "末端配送占履约成本三分之一，是下一步降本的重点",
+ "source": "资料来源：示意数据，作者整理",
+ "steps": [
+  {
+   "label": "顾客下单",
+   "cost": 8.5,
+   "cost_label": "支付手续费"
+  },
+  {
+   "label": "订单处理",
+   "cost": 7.2,
+   "cost_label": "IT 与折旧"
+  },
+  {
+   "label": "仓储",
+   "cost": 11.6,
+   "cost_label": "仓库租金"
+  },
+  {
+   "label": "拣货打包",
+   "cost": 17.9,
+   "cost_label": "仓内人工"
+  },
+  {
+   "label": "干线运输",
+   "cost": 15.4,
+   "cost_label": "干线运输"
+  },
+  {
+   "label": "末端配送",
+   "cost": 33.8,
+   "cost_label": "配送人工"
+  },
+  {
+   "label": "签收售后",
+   "cost": 5.6,
+   "cost_label": "客服人工"
+  }
+ ],
+ "groups": [
+  {
+   "from": "仓储",
+   "to": "拣货打包",
+   "text": "仓内环节 29.5%"
+  }
+ ],
+ "highlight": "末端配送",
+ "highlight_text": "降本空间最大"
+}

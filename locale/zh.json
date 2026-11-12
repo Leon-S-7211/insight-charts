@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "insight-charts 研报级图表",
-    "description": "让智能体画出研报级图表：深青与灰阶两套主题，七个现成画法，以及放图时机和标题写法。只依赖 matplotlib。"
+    "description": "让智能体画出研报级图表：深青与灰阶两套主题，十二个现成画法和一组强调记号，以及放图时机、标题写法和整页排法。只依赖 matplotlib。"
   }
 }

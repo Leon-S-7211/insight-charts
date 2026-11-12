@@ -3,14 +3,18 @@
 让智能体画出「一眼能读出结论」的图。一个通用的 Agent Skill，同时打包成 Claude Code 插件和 DeepSeek Harness 插件。
 
 - **两套主题**：`teal` 深青（数据展示型），`mono` 灰阶加单色高亮（论证型）。
-- **七个画法**：只依赖 matplotlib，用 JSON 规格或 Python 调用。
-- **一套写作规则**：什么时候放图、标题怎么写、图边上写什么。
+- **十二个画法**：只依赖 matplotlib，用 JSON 规格或 Python 调用。
+- **一组强调记号**：虚线框、红叉、贴线小牌、编号圆点、时代条、旁注栏，大多数画法通用。
+- **一套写作规则**：什么时候放图、标题怎么写、一页怎么排、强调怎么用。
 
 | | |
 |---|---|
 | ![](skills/insight-charts/assets/trend_events.png) 带事件分隔线的趋势图 | ![](skills/insight-charts/assets/stacked_family.png) 按家族配色的堆叠柱 |
 | ![](skills/insight-charts/assets/panel_grid.png) 多图联排 | ![](skills/insight-charts/assets/scenario_fan.png) 情景区间图加驱动因素表 |
 | ![](skills/insight-charts/assets/capability_ladder.png) 能力阶梯图 | ![](skills/insight-charts/assets/area_highlight.png) 突出一层的堆叠面积图 |
+| ![](skills/insight-charts/assets/zh_phase_trend.png) 分阶段趋势图 | ![](skills/insight-charts/assets/zh_waterfall.png) 拆分瀑布图加旁注 |
+| ![](skills/insight-charts/assets/zh_aligned.png) 按发展年份对齐 | ![](skills/insight-charts/assets/zh_process_cost.png) 流程加成本柱 |
+| ![](skills/insight-charts/assets/zh_share_compare.png) 结构对比加编号旁注 | ![](skills/insight-charts/assets/zh_trend_eras.png) 时代条加虚线框 |
 
 图中数据均为示意。
 
@@ -89,9 +93,9 @@ python scripts/demo.py          # 重新生成全部示例
 ```
 skills/insight-charts/
   SKILL.md                    技能入口：流程、选图表、调用方法、自查清单
-  references/recipes.md       七个画法的适用场景与参数
+  references/recipes.md       十二个画法的适用场景与参数、通用的强调记号
   references/style-tokens.md  色值、字号、版式
-  references/writing-rhythm.md 放图时机与标题写法
+  references/writing-rhythm.md 放图时机、标题写法、整页排法
   scripts/insight_charts.py   绘图库与命令行入口
   scripts/demo.py             示例生成器
   examples/*.json             规格样例
@@ -102,9 +106,15 @@ package.json, cordis.patch.yml, index.js, locale/, icon.svg   DeepSeek Harness �
 
 ## 说明
 
-- 风格参考了海外另类数据商的数据简报和卖方研究报告的图表习惯，本仓库不包含任何第三方的标志、水印或数据。
+- 风格参考了海外另类数据商的数据简报、卖方研究报告和国内买方机构公司深度报告的图表习惯，本仓库不包含任何第三方的标志、水印或数据。
 - 已在 DeepSeek Harness 0.2.2-rc.1 上实测：从 npm 安装、插件加载、技能进入目录、`/insight-charts` 把技能说明交给模型。实测用的是本地模拟的模型接口，没有接真实模型跑完整出图。
 - Claude Code 的插件安装尚未实测。
+
+## 更新记录
+
+- **0.2.0**：新增五个画法：分阶段趋势图 `phase_trend`、拆分瀑布图 `waterfall`、按发展年份对齐 `aligned_compare`、流程加成本柱 `process_cost`、结构对比加编号旁注 `share_compare`。新增通用的强调记号 `marks`（虚线框、红叉、贴线小牌、编号圆点）、时代条 `eras`、旁注栏 `notes`。写作规则补充了一页一个论点、强调只用三种记号、先统一口径、首尾呼应、概念图写法和不建议照搬的做法。原有七个画法的输出不变。
+- **0.1.1**：说明 `/insight-charts` 调用方式，放宽 DeepSeek Harness 版本范围。
+- **0.1.0**：首个版本。
 
 ## 许可
 

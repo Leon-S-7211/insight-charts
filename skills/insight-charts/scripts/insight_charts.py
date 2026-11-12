@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """insight_charts — research-grade chart recipes on top of matplotlib.
 
-Two themes, six recipes. Import it, or drive it with a JSON spec:
+Two themes, twelve recipes, shared emphasis marks. Import it, or drive it with a JSON spec:
 
     python insight_charts.py spec.json -o chart.png
 
@@ -27,10 +27,10 @@ from matplotlib import patheffects as pe  # noqa: E402
 from matplotlib.transforms import blended_transform_factory  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap, to_rgb  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
-from matplotlib.patches import Circle, FancyBboxPatch, Patch, Polygon, Rectangle  # noqa: E402
+from matplotlib.patches import Circle, Ellipse, FancyBboxPatch, Patch, Polygon, Rectangle  # noqa: E402
 from matplotlib.ticker import FuncFormatter, MaxNLocator  # noqa: E402
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 # --------------------------------------------------------------------------
 # Style tokens
@@ -198,7 +198,27 @@ def _wrap(text, width):
     return out
 
 
-def _frame_teal(figsize=(10, 7.2), title=None, brand=None, plot_rect=None, source=None, unit=None):
+def _wrap_soft(text, width):
+    """Like _wrap, but split a two-line paragraph after a comma or stop when both halves fit."""
+    wid = lambda t: sum(2 if _CJK.match(c) else 1 for c in t)  # noqa: E731
+    out = []
+    for para in str(text).split("\n"):
+        if wid(para) <= width:
+            out.append(para)
+            continue
+        best = None
+        for m in re.finditer(r"[，、；：。,;:]", para):
+            head, tail = para[:m.end()], para[m.end():].lstrip()
+            if tail and wid(head) <= width and wid(tail) <= width:
+                score = abs(wid(head) - wid(tail))
+                if best is None or score < best[0]:
+                    best = (score, head, tail)
+        out += [best[1], best[2]] if best else _wrap(para, width)
+    return out
+
+
+def _frame_teal(figsize=(10, 7.2), title=None, brand=None, plot_rect=None, source=None, unit=None,
+                top_pad=0.0):
     setup_fonts()
     T = TEAL
     fig = plt.figure(figsize=figsize, facecolor="white")
@@ -207,6 +227,7 @@ def _frame_teal(figsize=(10, 7.2), title=None, brand=None, plot_rect=None, sourc
     top = 0.90 if not tl else (0.815 if len(tl) == 1 else 0.765)
     if unit:
         top -= 0.03
+    top -= top_pad
     bottom = 0.30 if not source else 0.315
     rect = plot_rect or [0.125, bottom, 0.80, top - bottom]
     ax = fig.add_axes(rect)
@@ -214,7 +235,7 @@ def _frame_teal(figsize=(10, 7.2), title=None, brand=None, plot_rect=None, sourc
         fig.text(0.075, 0.955, "\n".join(tl), fontsize=23 if len(tl) == 1 else 20,
                  fontweight="bold", color=T["ink"], ha="left", va="top", linespacing=1.18)
     if unit:
-        fig.text(rect[0] - 0.05, top + 0.022, unit, fontsize=11, fontweight="bold",
+        fig.text(rect[0] - 0.05, top + 0.022 + top_pad, unit, fontsize=11, fontweight="bold",
                  color=T["label"], ha="left", va="bottom")
     if source:
         sl = _wrap(source, int(118 * wide))[:2]
@@ -242,10 +263,12 @@ def _legend_below(fig, ax, handles, labels, T, y=0.125, max_cols=6):
     return leg
 
 
-def _frame_mono(figsize=(7.2, 4.9), title=None, source=None, unit=None, fig=None, cell=None):
+def _frame_mono(figsize=(7.2, 4.9), title=None, source=None, unit=None, fig=None, cell=None,
+                side=0.0):
     """Sell-side frame: bold conclusion title, hairline, plot, hairline, source.
 
     cell = (left, bottom, width, height) in figure fractions lets several frames share a figure.
+    side = share of the width kept on the right for side notes (see _side_notes).
     Returns (fig, ax)."""
     setup_fonts()
     M = MONO
@@ -277,9 +300,12 @@ def _frame_mono(figsize=(7.2, 4.9), title=None, source=None, unit=None, fig=None
         fig.text(L + 0.02 * W, y - title_h - 8 * pt, unit, fontsize=10, fontweight="bold",
                  color=M["ink"], ha="left", va="top")
     pad_t, pad_b = 16 * pt, 34 * pt
-    ax = fig.add_axes([L + 0.085 * W, B + src_h + pad_b, W * 0.83,
+    ax_w = W * 0.83 if not side else W * (1 - side) - W * 0.105
+    ax = fig.add_axes([L + 0.085 * W, B + src_h + pad_b, ax_w,
                        H - title_h - src_h - unit_h - pad_t - pad_b])
     ax._ic_bounds = (B + src_h + 7 * pt, y - title_h - unit_h - 7 * pt)
+    if side:
+        ax._ic_side = (L + W * (1 - side) + 0.01 * W, L + W, y - title_h - 10 * pt, B + src_h + 10 * pt)
     for s in ("top", "right", "left"):
         ax.spines[s].set_visible(False)
     ax.spines["bottom"].set_color(M["ink"])
@@ -362,15 +388,19 @@ def _place_chips(fig, ax, events, x, T, chip="soft", at="top"):
 
 def trend_events(x, series, events=None, title=None, ylabel=None, yfmt=None, ylim=None,
                  chip="soft", chip_at="top", colors=None, linewidth=2.4, xtick_every=None,
-                 source=None, unit=None, brand=None, out=None, figsize=(10, 7.2)):
+                 source=None, unit=None, brand=None, eras=None, marks=None, out=None,
+                 figsize=(10, 7.2)):
     """Multi-line trend with vertical event dividers (model launches, policy dates, price moves).
 
     x: list of category labels (dates as strings). series: {name: values}.
     events: [{"at": label-or-index, "label": "Opus 4.5\\nClaude Cowork"}].
-    chip: "soft" grey chips for context events, "ink" dark chips when the events ARE the story."""
+    chip: "soft" grey chips for context events, "ink" dark chips when the events ARE the story.
+    eras: [{"from": x, "label": "…"}, …] named stretches in a strip above the plot.
+    marks: dashed boxes, red crosses, pins and numbered dots (see _draw_marks)."""
     T = TEAL
-    _check_cjk(title, ylabel, source, unit, *series)
-    fig, ax = _frame_teal(figsize, title, brand, source=source, unit=unit)
+    _check_cjk(title, ylabel, source, unit, *series, *[e["label"] for e in eras or []])
+    fig, ax = _frame_teal(figsize, title, brand, source=source, unit=unit,
+                          top_pad=0.05 if eras else 0.0)
     xs = np.arange(len(x))
     cols = colors or T["series"]
     handles = []
@@ -393,6 +423,9 @@ def trend_events(x, series, events=None, title=None, ylabel=None, yfmt=None, yli
     ax.axhline(ax.get_ylim()[0], color="#D5D5D5", linewidth=1.2, zorder=2)
     if events:
         _place_chips(fig, ax, events, list(x), T, chip, chip_at)
+    if eras:
+        _draw_eras(ax, x, eras, color=T["ink"])
+    _draw_marks(ax, x, marks, dict(series), T)
     _legend_below(fig, ax, handles, list(series), T)
     return _save(fig, out)
 
@@ -417,12 +450,14 @@ def family_colors(families, minor=None):
 
 def stacked_family(x, layers, families=None, minor=None, colors=None, title=None, ylabel=None,
                    yfmt=None, percent=False, xtick_every=None, source=None, unit=None,
-                   brand=None, out=None, figsize=(10, 7.2)):
+                   brand=None, totals=False, marks=None, out=None, figsize=(10, 7.2)):
     """Stacked bars where colour encodes family first, generation second.
 
     layers: {member: values} in bottom-to-top order.
     families: {"Sonnet": ["Sonnet 5.5", "Sonnet 5", ...], "Opus": [...]} newest first.
-    minor: small leftovers that get accent colours and sit on top."""
+    minor: small leftovers that get accent colours and sit on top.
+    totals: write each bar's total above it.  marks: see _draw_marks (a red cross over a
+    forecast, a dashed box around the years that matter)."""
     T = TEAL
     _check_cjk(title, ylabel, source, unit, *layers)
     fig, ax = _frame_teal(figsize, title, brand, source=source, unit=unit)
@@ -444,6 +479,13 @@ def stacked_family(x, layers, families=None, minor=None, colors=None, title=None
     ax.set_xlim(-0.7, len(x) - 0.3)
     if percent:
         ax.set_ylim(0, 100)
+    elif totals:
+        ax.set_ylim(0, bottom.max() * 1.1)
+        tf = fmt(yfmt)
+        for i, v in enumerate(bottom):
+            ax.annotate(tf(v), (i, v), xytext=(0, 4), textcoords="offset points", ha="center",
+                        va="bottom", fontsize=9.5, fontweight="bold", color=T["ink"], zorder=6)
+    _draw_marks(ax, x, marks, {"total": bottom}, T)
     ax.yaxis.set_major_locator(MaxNLocator(10))
     ax.yaxis.set_major_formatter(_tickfmt("%" if percent and yfmt is None else yfmt))
     if ylabel:
@@ -468,7 +510,7 @@ def stacked_family(x, layers, families=None, minor=None, colors=None, title=None
 def _draw_bar_line(ax, x, bars, line=None, theme="mono", bar_fmt=None, line_fmt=None,
                    left_fmt=None, right_fmt=None, bar_name=None, line_name=None,
                    highlight=None, forecast_from=None, labels=True, right_ylim=None,
-                   left_ylim=None, legend="top", note=None):
+                   left_ylim=None, legend="top", note=None, marks=None):
     T = _theme(theme)
     mono = T["name"] == "mono"
     xs = np.arange(len(x))
@@ -541,6 +583,7 @@ def _draw_bar_line(ax, x, bars, line=None, theme="mono", bar_fmt=None, line_fmt=
     if note:
         ax.text(0.30, 0.86, note, transform=ax.transAxes, fontsize=10, color=T.get("alert", "#C00000"),
                 ha="left", va="top", linespacing=1.35)
+    _draw_marks(ax, list(x), marks, {"bars": b}, T)
     if legend and any(names):
         hs = [h for h, n in zip(handles, names) if n]
         ns = [n for n in names if n]
@@ -576,12 +619,17 @@ def _declash(ax, ax2, bar_labels, line_labels, bars, line_vals):
 
 
 def bar_line(x, bars, line=None, title=None, source=None, unit=None, number=None, theme="mono",
-             ylabel=None, right_label=None, out=None, figsize=None, brand=None, **kw):
-    """Level as bars, ratio as a line. theme="mono" → grey bars, labelled; "teal" → pale bars."""
+             ylabel=None, right_label=None, notes=None, notes_title=None, out=None, figsize=None,
+             brand=None, **kw):
+    """Level as bars, ratio as a line. theme="mono" → grey bars, labelled; "teal" → pale bars.
+    notes (mono only): numbered conclusions in a column on the right."""
     _check_cjk(title, source, unit)
     if _theme(theme)["name"] == "mono":
-        fig, ax = _frame_mono(figsize or (7.2, 4.9), _numbered(title, number), source, unit)
+        size, side = _prep_notes(notes, figsize or (7.2, 4.9))
+        fig, ax = _frame_mono(size, _numbered(title, number), source, unit, side=side)
         _fit(ax, _draw_bar_line(ax, x, bars, line, "mono", **kw))
+        if notes:
+            _side_notes(fig, ax, notes, notes_title)
     else:
         T = TEAL
         fig, ax = _frame_teal(figsize or (10, 7.2), title, brand, source=source, unit=unit)
@@ -642,12 +690,13 @@ def _draw_cost_steps(ax, groups, parts, colors=None, highlight=None, theme="mono
 
 
 def _draw_bars(ax, x, values, highlight=None, value_fmt=None, forecast_from=None, note=None,
-               left_fmt=None, hide_y=False):
+               left_fmt=None, hide_y=False, marks=None):
     M = MONO
     if left_fmt is None and value_fmt in ("%", "%1", "$", "$2"):
         left_fmt = value_fmt[0]              # the axis speaks the same unit as the labels
     _draw_bar_line(ax, x, values, None, "mono", bar_fmt=value_fmt, left_fmt=left_fmt,
-                   highlight=highlight, forecast_from=forecast_from, legend=None, note=note)
+                   highlight=highlight, forecast_from=forecast_from, legend=None, note=note,
+                   marks=marks)
     if hide_y:
         ax.set_yticklabels([])
     if len(x) > 6 or max(len(str(s)) for s in x) > 9:
@@ -664,7 +713,7 @@ _PANEL_DRAWERS = {}
 def panel_grid(panels, ncols=2, start_number=1, out=None, figsize=None, lang=None):
     """Several small conclusions on one canvas. Each panel is a dict:
 
-    {"kind": "bar_line" | "cost_steps" | "bars" | "area" | "lines",
+    {"kind": "bar_line" | "cost_steps" | "bars" | "area" | "lines" | "waterfall" | "aligned",
      "title": "conclusion sentence", "source": "...", "unit": "Unit: RMB m", ...recipe args}
 
     Titles are numbered automatically from start_number (pass start_number=None to skip)."""
@@ -695,7 +744,7 @@ def panel_grid(panels, ncols=2, start_number=1, out=None, figsize=None, lang=Non
 # Recipe 5 — stacked area with one highlighted layer
 # --------------------------------------------------------------------------
 def _draw_area(ax, x, layers, highlight=None, annotation=None, yfmt=None, xtick_every=None,
-               theme="mono"):
+               theme="mono", marks=None):
     M = MONO
     xs = np.arange(len(x))
     names = list(layers)
@@ -728,22 +777,27 @@ def _draw_area(ax, x, layers, highlight=None, annotation=None, yfmt=None, xtick_
                 color=M["alert"], fontsize=11, ha="center" if ha == "center" else ha, va="bottom",
                 linespacing=1.12, zorder=9,
                 path_effects=[pe.withStroke(linewidth=2.6, foreground="white", alpha=0.85)])
+    _draw_marks(ax, x, marks, {"total": np.sum(ys, axis=0)})
 
 
 def area_highlight(x, layers, highlight=None, annotation=None, title=None, source=None, unit=None,
-                   number=None, yfmt=None, xtick_every=None, out=None, figsize=(7.4, 5.0)):
+                   number=None, yfmt=None, xtick_every=None, marks=None, notes=None, notes_title=None,
+                   out=None, figsize=(7.4, 5.0)):
     """Stacked area: the layer that carries the story is tinted, the rest step down in grey.
 
     annotation: {"at": x-label-or-index, "text": "Announced 30%\\nprice hike", "y": 0}"""
     _check_cjk(title, source, unit, *layers)
-    fig, ax = _frame_mono(figsize, _numbered(title, number), source, unit)
-    _draw_area(ax, x, layers, highlight, annotation, yfmt, xtick_every)
+    figsize, side = _prep_notes(notes, figsize)
+    fig, ax = _frame_mono(figsize, _numbered(title, number), source, unit, side=side)
+    _draw_area(ax, x, layers, highlight, annotation, yfmt, xtick_every, marks=marks)
     _fit(ax)
+    if notes:
+        _side_notes(fig, ax, notes, notes_title)
     return _save(fig, out)
 
 
 def _draw_lines(ax, x, series, yfmt=None, colors=None, end_labels=True, xtick_every=None,
-                steps=False, ylim=None):
+                steps=False, ylim=None, marks=None):
     """Subject vs comparator lines: navy for the subject, salmon for the comparator, grey after."""
     M = MONO
     xs = np.arange(len(x))
@@ -768,6 +822,7 @@ def _draw_lines(ax, x, series, yfmt=None, colors=None, end_labels=True, xtick_ev
         ax.legend([Line2D([0], [0], color=cols[i % len(cols)], linewidth=2) for i in range(len(series))],
                   list(series), loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=len(series),
                   frameon=False, fontsize=10)
+    _draw_marks(ax, x, marks, dict(series))
 
 
 _PANEL_DRAWERS.update(bar_line=_draw_bar_line, cost_steps=_draw_cost_steps, bars=_draw_bars,
@@ -1140,6 +1195,659 @@ def capability_ladder(timeline, stages, curve, milestones=None, title=None, sour
 
 
 # --------------------------------------------------------------------------
+# Shared emphasis: marks (dashed box, red cross, pin, numbered dot), era strip, side notes
+# --------------------------------------------------------------------------
+_DASH = (0, (4, 3))
+
+
+def _alert(T):
+    return T.get("alert", "#E84A47")
+
+
+def _badge(owner, xv, yv, n, transform, color="#000000", size=8.5):
+    """A numbered dot. owner is an Axes or a Figure."""
+    return owner.text(xv, yv, str(n), transform=transform, ha="center", va="center", fontsize=size,
+                      fontweight="bold", color=color, zorder=9, clip_on=False,
+                      bbox=dict(boxstyle="circle,pad=0.22", fc="white", ec=color, lw=0.9))
+
+
+def _draw_marks(ax, x, marks, values=None, T=None):
+    """Draw emphasis marks on an axes whose x positions are category indices.
+
+    {"type": "box",   "from": x, "to": x, "y": [lo, hi], "text": "…", "text_at": "top"|"bottom"}
+    {"type": "cross", "from": x, "to": x, "y": [lo, hi], "text": "…"}
+    {"type": "pin",   "at": x, "y": v | "series": name, "text": "…", "dy": 26}
+    {"type": "num",   "at": x, "y": v, "n": 1}
+    Omit "y" on a box or cross to cover the full plot height. Positions are labels or indices."""
+    if not marks:
+        return
+    T = T or MONO
+    red, ink = _alert(T), T["ink"]
+    xl = list(x) if x is not None else []
+    blend = ax.get_xaxis_transform()
+    for m in marks:
+        kind = m.get("type", "box")
+        if kind not in ("box", "cross", "pin", "num"):
+            raise SystemExit(f"marks: unknown type {kind!r}; use box, cross, pin or num")
+        if kind in ("box", "cross"):
+            pad = m.get("pad", 0.42)
+            a, b = _xpos(xl, m["from"]), _xpos(xl, m.get("to", m["from"]))
+            lim0, lim1 = sorted(ax.get_xlim())
+            x0, x1 = max(lim0, min(a, b) - pad), min(lim1, max(a, b) + pad)
+            if m.get("y") is None:
+                tr, y0, y1 = blend, 0.02, 0.98
+            else:
+                tr, (y0, y1) = ax.transData, sorted(float(v) for v in m["y"])
+            if kind == "box":
+                ax.add_patch(Rectangle((x0, y0), x1 - x0, y1 - y0, transform=tr, fill=False,
+                                       ec=red, lw=1.3, ls=_DASH, zorder=7, clip_on=False))
+            else:
+                for (p, q) in (((x0, y0), (x1, y1)), ((x0, y1), (x1, y0))):
+                    ax.plot([p[0], q[0]], [p[1], q[1]], transform=tr, color=red, lw=3.4, alpha=0.72,
+                            solid_capstyle="round", zorder=7, clip_on=False)
+            if m.get("text") and kind == "cross":
+                cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+                ax.text(cx, cy, m["text"], transform=tr, ha="center", va="center", fontsize=9.5,
+                        color=red, fontweight="bold", zorder=9, clip_on=False, linespacing=1.2,
+                        bbox=dict(boxstyle="round,pad=0.35,rounding_size=0.3", fc="white", ec=red,
+                                  lw=0.9))
+            elif m.get("text"):
+                top = m.get("text_at", "top") == "top"
+                ax.annotate(m["text"], (x0, y1 if top else y0), xycoords=tr,
+                            xytext=(5, -4 if top else 4), textcoords="offset points",
+                            ha="left", va="top" if top else "bottom", fontsize=9.5, color=red,
+                            fontweight="bold", linespacing=1.2, zorder=9, annotation_clip=False,
+                            path_effects=[pe.withStroke(linewidth=3, foreground="white")])
+            continue
+        xv = _xpos(xl, m["at"])
+        yv = m.get("y")
+        if yv is None and values:
+            arr = values.get(m.get("series"), next(iter(values.values())))
+            yv = float(np.asarray(arr, dtype=float)[int(round(xv))])
+        if yv is None:
+            raise SystemExit(f"marks: {kind} at {m['at']!r} needs a 'y' value")
+        if kind == "num":
+            _badge(ax, xv, yv, m.get("n", 1), ax.transData, color=ink)
+            continue
+        dy = m.get("dy", 26)
+        ax.plot([xv], [yv], "o", ms=4.2, color=ink, zorder=8, clip_on=False)
+        soft = "#EEF4F5" if T is TEAL else "#F2F5FB"
+        edge = "#B9D3D9" if T is TEAL else "#C9D3EA"
+        ax.annotate(m["text"], (xv, yv), xytext=(m.get("dx", 0), dy), textcoords="offset points",
+                    ha="center", va="bottom" if dy >= 0 else "top", fontsize=8.8, color=ink,
+                    linespacing=1.15, zorder=9, annotation_clip=False,
+                    bbox=dict(boxstyle="round,pad=0.3,rounding_size=0.3", fc=soft, ec=edge, lw=0.8),
+                    arrowprops=dict(arrowstyle="-", color=edge, lw=0.9, shrinkA=0, shrinkB=3))
+
+
+def _draw_eras(ax, x, eras, color="#000000", lines=False):
+    """A strip above the plot that names the eras a series went through.
+    eras: [{"from": x, "label": "云时代"}, …, {"from": x, "to": x, "label": "广告时代？", "open": true}]
+    Each era lasts until the next one starts; the last one runs to its "to" or to the end of x."""
+    xl = list(x)
+    tr = ax.get_xaxis_transform()
+    y = 1.045
+    starts = [_xpos(xl, e["from"]) for e in eras]
+    last = eras[-1]
+    end = _xpos(xl, last["to"]) if last.get("to") is not None else len(xl) - 1
+    bounds = starts + [end]
+    ax.plot([bounds[0], bounds[-1]], [y, y], transform=tr, color=color, lw=1.1, clip_on=False, zorder=6)
+    if last.get("open"):
+        ax.annotate("", xy=(bounds[-1] + 0.02 * len(xl), y), xytext=(bounds[-1] - 0.001, y),
+                    xycoords=tr, arrowprops=dict(arrowstyle="-|>", color=color, lw=1.1,
+                                                 mutation_scale=11), annotation_clip=False)
+    for i, b in enumerate(bounds):
+        if i == len(bounds) - 1 and last.get("open"):
+            continue
+        ax.plot([b, b], [y - 0.022, y + 0.022], transform=tr, color=color,
+                lw=2.2 if 0 < i < len(bounds) - 1 else 1.1, clip_on=False, zorder=6)
+        if lines and 0 < i < len(bounds) - 1:
+            ax.axvline(b, color="#BDBDBD", lw=0.9, ls=(0, (2, 2)), zorder=1)
+    for e, a, b in zip(eras, bounds[:-1], bounds[1:]):
+        ax.text((a + b) / 2, y, e["label"], transform=tr, ha="center", va="center", fontsize=9,
+                color=color, zorder=7, clip_on=False,
+                bbox=dict(boxstyle="square,pad=0.28", fc="white", ec=color, lw=0.8))
+
+
+def _side_notes(fig, ax, notes, title=None, numbered=True, fontsize=9.2):
+    """Numbered notes in the column _frame_mono(side=…) reserved on the right."""
+    x0, x1, ytop, ybot = ax._ic_side
+    fh, fw = fig.get_figheight(), fig.get_figwidth()
+    pt_y, pt_x = 1 / 72 / fh, 1 / 72 / fw
+    ink = MONO["ink"]
+    for fs in (fontsize, fontsize - 0.8, fontsize - 1.4):
+        arts = []
+        units = int((x1 - x0) * fw * 72 * 2 / fs) - (6 if numbered else 4)
+        y = ytop - 8 * pt_y
+        if title:
+            for ln in _wrap(title, units + 2):
+                arts.append(fig.text(x0 + 7 * pt_x, y, ln, fontsize=fs + 0.8, fontweight="bold",
+                                     color=MONO["navy"], ha="left", va="top"))
+                y -= (fs + 0.8) * 1.3 * pt_y
+            y -= 5 * pt_y
+        for i, note in enumerate(notes):
+            n, body = (note.get("n", i + 1), note["text"]) if isinstance(note, dict) else (i + 1, note)
+            lines = _wrap_soft(body, units)
+            tx = x0 + (7 + (fs * 1.7 if numbered else fs)) * pt_x
+            if numbered:
+                arts.append(_badge(fig, x0 + (7 + fs * 0.6) * pt_x, y - fs * 0.78 * pt_y, n,
+                                   fig.transFigure, color=ink, size=fs - 1.2))
+            else:
+                arts.append(fig.text(x0 + 7 * pt_x, y, "·", fontsize=fs, color=ink, ha="left", va="top"))
+            arts.append(fig.text(tx, y, "\n".join(lines), fontsize=fs, color=ink, ha="left", va="top",
+                                 linespacing=1.35))
+            y -= (len(lines) * fs * 1.35 + 7) * pt_y
+        if y > ybot or fs == fontsize - 1.4:
+            if y < ybot:
+                warnings.warn("side notes overflow their column; shorten them", stacklevel=3)
+            low = max(ybot, y - 4 * pt_y)
+            fig.add_artist(Rectangle((x0, low), x1 - x0, ytop - low, transform=fig.transFigure,
+                                     fill=False, ec="#BFBFBF", lw=0.8, ls=(0, (3, 2))))
+            return
+        for a in arts:
+            a.remove()
+
+
+def _legend_under(ax, handles, names, fontsize=9.5, ncol=None):
+    """Legend centred just below the x tick labels (re-run after the axes is resized)."""
+    fig = ax.figure
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    bb = [t.get_window_extent(rend) for t in ax.get_xticklabels() if t.get_text()]
+    y_px = min(b.y0 for b in bb) if bb else ax.get_window_extent(rend).y0
+    y_ax = ax.transAxes.inverted().transform((0, y_px - 4))[1]
+    if ax.get_legend():
+        ax.get_legend().remove()
+    return ax.legend(handles, names, loc="upper center", bbox_to_anchor=(0.5, y_ax), frameon=False,
+                     ncol=ncol or len(names), fontsize=fontsize, handlelength=1.8, columnspacing=1.6,
+                     labelcolor=MONO["legend"], borderaxespad=0)
+
+
+def _fit_with_legend(ax, handles, names, ncol=None, twins=()):
+    for _ in range(2):
+        _legend_under(ax, handles, names, ncol=ncol)
+        _fit(ax, *twins)
+
+
+def _prep_notes(notes, figsize, side=0.34):
+    """Widen the figure for a notes column so the chart itself keeps its size."""
+    if not notes:
+        return figsize, 0.0
+    return (figsize[0] / (1 - side * 0.92), figsize[1]), side
+
+
+# --------------------------------------------------------------------------
+# Recipe 8 — phases: lines split by dashed boxes, each with a verdict
+# --------------------------------------------------------------------------
+def phase_trend(x, series, phases, title=None, source=None, unit=None, number=None, yfmt=None,
+                ylim=None, labels="phase_ends", label_fmt=None, colors=None, box_color="#9A9A9A",
+                eras=None, marks=None, xtick_every=None, out=None, figsize=(9.6, 5.6)):
+    """Lines over a long history, cut into phases by dashed boxes. Each phase gets a name, a red
+    one-line verdict and up to three bullets, written into the emptier half of its box.
+
+    phases: [{"from": "1995", "to": "2000", "name": "第一阶段（1995-2000）：",
+              "verdict": "创造流量，跑通模式", "notes": ["…", "…"], "pos": "auto"}]
+    labels: "phase_ends" labels the first series where each phase ends, "ends" only the first
+            and last points, None nothing."""
+    M = MONO
+    _check_cjk(title, source, unit, *series,
+               *[str(p.get("name", "")) + str(p.get("verdict", "")) for p in phases])
+    fig, ax = _frame_mono(figsize, _numbered(title, number), source, unit)
+    x = list(x)
+    n = len(x)
+    xs = np.arange(n)
+    cols = colors or [M["navy"], "#595959", "#A6A6A6", "#C8C8C8"]
+    vals, handles = {}, []
+    for i, (name, v) in enumerate(series.items()):
+        a = np.array([np.nan if t is None else t for t in v], dtype=float)
+        vals[name] = a
+        (ln,) = ax.plot(xs[:len(a)], a, color=cols[i % len(cols)], lw=2.3 if i == 0 else 1.8,
+                        zorder=4.5 if i == 0 else 4, solid_joinstyle="round")
+        handles.append(ln)
+    ax.set_xlim(-0.6, n - 0.4)
+    allv = np.concatenate([a[~np.isnan(a)] for a in vals.values()])
+    lo, hi = float(allv.min()), float(allv.max())
+    span = (hi - lo) or 1.0
+    ax.set_ylim(*(ylim or ((0 if 0 <= lo < span * 0.5 else lo - span * 0.08), hi + span * 0.08)))
+    ax.yaxis.set_major_locator(MaxNLocator(8, steps=[1, 2, 2.5, 5, 10]))
+    ax.yaxis.set_major_formatter(_tickfmt(yfmt))
+    long = n > 14 or max(len(str(s)) for s in x) > 6
+    _thin_xticks(ax, x, xtick_every, rotation=45 if long else 0, color=M["tick"], size=9.5)
+    if eras:
+        _draw_eras(ax, x, eras, color=M["ink"])
+    _fit_with_legend(ax, handles, list(series))
+
+    # lay out the phase text, then make head-room for it
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    bb = ax.get_window_extent(rend)
+    px_x = bb.width / (ax.get_xlim()[1] - ax.get_xlim()[0])
+    ax_h_pt = bb.height * 72 / fig.dpi
+    fs_h, fs_n, lsp = 9.4, 8.7, 1.32
+    plans = []
+    for p in phases:
+        x0 = _xpos(x, p["from"]) - 0.42
+        x1 = _xpos(x, p.get("to", p["from"])) + 0.42
+        w_pt = (x1 - x0) * px_x * 72 / fig.dpi - 10
+        head_units = int(w_pt * 2 / fs_h)
+        name, verdict = str(p.get("name", "")), str(p.get("verdict", ""))
+        wid = lambda t: sum(2 if _CJK.match(c) else 1 for c in t)  # noqa: E731
+        rows = []                                    # (text, size, colour, bold, x-offset key)
+        if name and verdict and wid(name + verdict) <= head_units:
+            rows.append(("pair", name, verdict))
+        else:
+            rows += [("head", ln) for ln in _wrap(name, head_units)]
+            rows += [("verdict", ln) for ln in _wrap(verdict, head_units)]
+        note_units = int(w_pt * 2 / fs_n) - 2
+        for note in p.get("notes", [])[:3]:
+            for k, ln in enumerate(_wrap_soft(note, note_units)):
+                rows.append(("note", ("· " if k == 0 else "  ") + ln))
+        h_pt = sum((fs_n if r[0] == "note" else fs_h) * lsp for r in rows) + 8
+        i0, i1 = max(0, int(np.ceil(x0))), min(n - 1, int(np.floor(x1)))
+        seg = np.concatenate([a[i0:i1 + 1] for a in vals.values()])
+        seg = seg[~np.isnan(seg)]
+        plans.append(dict(p=p, x0=x0, x1=x1, rows=rows, bf=h_pt / ax_h_pt,
+                          vmax=float(seg.max()) if len(seg) else hi,
+                          vmin=float(seg.min()) if len(seg) else lo))
+    gap = 0.07 if labels else 0.04
+    y0, y1 = ax.get_ylim()
+    frac = lambda v, a, b: (v - a) / (b - a)  # noqa: E731
+    for q in plans:
+        want = q["p"].get("pos", "auto")
+        if want == "auto":
+            want = "top" if 0.98 - frac(q["vmax"], y0, y1) >= frac(q["vmin"], y0, y1) - 0.02 else "bottom"
+        q["pos"] = want
+    if not ylim:
+        for _ in range(4):
+            for q in plans:
+                if q["pos"] == "top":
+                    room = 0.97 - q["bf"] - gap
+                    if room > 0.15:
+                        y1 = max(y1, y0 + (q["vmax"] - y0) / room)
+                else:
+                    c = 0.03 + q["bf"] + gap * 0.6
+                    if c < 0.85:
+                        y0 = min(y0, (q["vmin"] - c * y1) / (1 - c))
+            if labels:
+                y1 = max(y1, y0 + (hi - y0) / 0.90)
+        ax.set_ylim(y0, y1)
+    pt_ax = 1 / ax_h_pt
+    dx = 6 * fig.dpi / 72 / px_x
+    for q in plans:
+        ax.add_patch(Rectangle((q["x0"], 0.015), q["x1"] - q["x0"], 0.97, transform=ax.get_xaxis_transform(),
+                               fill=False, ec=box_color, lw=1.15, ls=_DASH, zorder=2))
+        yy = 0.975 - 4 * pt_ax if q["pos"] == "top" else 0.03 + q["bf"] - 4 * pt_ax
+        tr = ax.get_xaxis_transform()
+        for r in q["rows"]:
+            size = fs_n if r[0] == "note" else fs_h
+            if r[0] == "pair":
+                t = ax.text(q["x0"] + dx, yy, r[1], transform=tr, fontsize=fs_h, fontweight="bold",
+                            color=M["ink"], ha="left", va="top", zorder=8)
+                fig.canvas.draw()
+                w = t.get_window_extent(fig.canvas.get_renderer()).width / px_x
+                ax.text(q["x0"] + dx + w, yy, r[2], transform=tr, fontsize=fs_h, fontweight="bold",
+                        color=M["alert"], ha="left", va="top", zorder=8)
+            else:
+                ax.text(q["x0"] + dx, yy, r[1], transform=tr, fontsize=size, ha="left", va="top",
+                        fontweight="normal" if r[0] == "note" else "bold", zorder=8,
+                        color=M["alert"] if r[0] == "verdict" else M["ink"])
+            yy -= size * lsp * pt_ax
+    first = next(iter(vals))
+    lab = fmt(label_fmt or yfmt)
+    a = vals[first]
+    ok = np.where(~np.isnan(a))[0]
+    idx = []
+    if labels == "ends" and len(ok):
+        idx = [ok[0], ok[-1]]
+    elif labels == "phase_ends" and len(ok):
+        idx = [ok[0]] + [int(round(_xpos(x, p.get("to", p["from"])))) for p in phases]
+    for i in sorted(set(i for i in idx if 0 <= i < n and not np.isnan(a[i]))):
+        ax.plot([i], [a[i]], "o", ms=3.6, color=cols[0], zorder=6)
+        ax.annotate(lab(a[i]), (i, a[i]), xytext=(0, 6), textcoords="offset points", ha="center",
+                    va="bottom", fontsize=8.6, fontweight="bold", color=cols[0], zorder=7,
+                    path_effects=[pe.withStroke(linewidth=2.4, foreground="white")])
+    if any(v < 0 for v in allv) and ax.get_ylim()[0] < 0:
+        ax.axhline(0, color="#9E9E9E", lw=0.9, zorder=2.5)
+    _draw_marks(ax, x, marks, vals)
+    return _save(fig, out)
+
+
+# --------------------------------------------------------------------------
+# Recipe 9 — waterfall (bridge from one total to another)
+# --------------------------------------------------------------------------
+def _draw_waterfall(ax, steps, value_fmt=None, highlight=None, connectors=True, note=None, marks=None):
+    M = MONO
+    vf = fmt(value_fmt)
+    n = len(steps)
+    labels = [s["label"] for s in steps]
+    hl = set([highlight] if isinstance(highlight, str) else (highlight or []))
+    cum, after, lows, highs = 0.0, [], [], []
+    texts = []
+    for i, s in enumerate(steps):
+        kind = s.get("kind", "delta")
+        if kind not in ("delta", "total", "subtotal"):
+            raise SystemExit(f"waterfall: step {s['label']!r} has kind {kind!r}; use delta, total or subtotal")
+        if kind == "total" and s.get("value") is not None:
+            cum = float(s["value"])
+        if kind in ("total", "subtotal"):
+            b0, b1, shown = min(0, cum), max(0, cum), cum
+            c = "#7F7F7F"
+        else:
+            v = float(s["value"])
+            b0, b1 = (cum, cum + v) if v >= 0 else (cum + v, cum)
+            cum += v
+            shown = v
+            c = M["greys"][0]
+        if s["label"] in hl:
+            c = M["navy"] if kind != "delta" else M["highlight"]
+        ax.bar(i, b1 - b0, bottom=b0, width=0.56, color=c, zorder=3)
+        after.append(cum)
+        lows.append(b0)
+        highs.append(b1)
+        neg = kind == "delta" and shown < 0
+        txt = vf(shown) if kind != "delta" or shown < 0 else "+" + vf(shown)
+        texts.append(ax.annotate(txt, (i, b1), xytext=(0, 4), textcoords="offset points", ha="center",
+                                 va="bottom", fontsize=9.6, color=M["alert"] if neg else M["ink"],
+                                 fontweight="bold" if kind != "delta" else "normal", zorder=6))
+        if s.get("tag"):
+            ax.annotate(s["tag"], (i, b1), xytext=(0, 18), textcoords="offset points", ha="center",
+                        va="bottom", fontsize=9, fontweight="bold", color=M["alert"], zorder=6)
+    if connectors:
+        for i in range(n - 1):
+            ax.plot([i + 0.28, i + 0.72], [after[i], after[i]], color="#8C8C8C", lw=0.8,
+                    ls=(0, (2, 2)), zorder=2.5)
+    top = max(highs) or 1
+    bot = min(0, min(lows))
+    ax.set_ylim(bot - (top - bot) * 0.04 if bot < 0 else 0, top + (top - bot) * 0.2)
+    ax.set_xlim(-0.6, n - 0.4)
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(["\n".join(_wrap(t, 10)) for t in labels], fontsize=9.5, color=M["tick"],
+                       linespacing=1.1)
+    ax.yaxis.set_major_locator(MaxNLocator(7, steps=[1, 2, 2.5, 5, 10]))
+    ax.yaxis.set_major_formatter(_tickfmt(value_fmt if value_fmt in (None, ",", "$", "%") else None))
+    if bot < 0:
+        ax.axhline(0, color=M["ink"], lw=0.9, zorder=2)
+    if note:
+        ax.text(0.98, 0.95, note, transform=ax.transAxes, fontsize=10, color=M["alert"], ha="right",
+                va="top", linespacing=1.35)
+    _draw_marks(ax, labels, marks, {"after": after})
+
+
+def waterfall(steps, title=None, source=None, unit=None, number=None, value_fmt=None,
+              highlight=None, connectors=True, note=None, marks=None, notes=None, notes_title=None,
+              out=None, figsize=(7.2, 4.9)):
+    """Bridge from one total to another through the pieces that add or take away.
+
+    steps: [{"label": "零售业务", "value": 187.5, "kind": "total"},
+            {"label": "新业务亏损", "value": -49.7},
+            {"label": "零售 EBIT", "kind": "subtotal", "tag": "利润率 2.5%"}, …]
+    kind: "delta" (default), "subtotal" (running sum so far) or "total" (given value, or running sum)."""
+    _check_cjk(title, source, unit, *[s["label"] for s in steps])
+    figsize, side = _prep_notes(notes, figsize)
+    fig, ax = _frame_mono(figsize, _numbered(title, number), source, unit, side=side)
+    _draw_waterfall(ax, steps, value_fmt, highlight, connectors, note, marks)
+    _fit(ax)
+    if notes:
+        _side_notes(fig, ax, notes, notes_title)
+    return _save(fig, out)
+
+
+# --------------------------------------------------------------------------
+# Recipe 10 — aligned comparison: put two histories on the same "year N" axis
+# --------------------------------------------------------------------------
+def _draw_aligned(ax, series, xlabel="Y{n}", yfmt=None, ylim=None, labels="ends", value_fmt=None,
+                  colors=None, marks=None, legend=True):
+    M = MONO
+    cols = colors or [M["navy"], M["salmon"], M["line"], M["greys"][1]]
+    n = max(len(s["values"]) for s in series.values())
+    x = [xlabel.format(n=i + 1) for i in range(n)]
+    xs = np.arange(n)
+    vf = fmt(value_fmt or yfmt)
+    handles, names, vals = [], [], {}
+    for i, (name, s) in enumerate(series.items()):
+        v = np.array([np.nan if a is None else a for a in s["values"]], dtype=float)
+        vals[name] = v
+        c = cols[i % len(cols)]
+        k = len(v)
+        periods = s.get("periods")
+        start = s.get("start")
+        f = s.get("forecast_from")
+        if periods:
+            fi = periods.index(f) if f is not None else None
+            span = f"{periods[0]}-{periods[-1]}"
+        elif isinstance(start, (int, float)):
+            fi = int(f - start) if f is not None else None
+            span = f"{int(start)}-{int(start) + k - 1}{'E' if f is not None else ''}"
+        else:
+            fi, span = None, None
+        solid_end = k if fi is None else fi
+        ax.plot(xs[:solid_end], v[:solid_end], color=c, lw=2.1, zorder=4, marker="o", ms=3.2)
+        if fi is not None and fi < k:
+            j = max(0, fi - 1)
+            ax.plot(xs[j:k], v[j:k], color=c, lw=1.8, ls=(0, (3, 2)), zorder=4, marker="o", ms=3.2,
+                    markerfacecolor="white")
+        handles.append(Line2D([0], [0], color=c, lw=2.1))
+        cjk = _CJK.search(str(name))
+        names.append(name if not span else (f"{name}（{span}）" if cjk else f"{name} ({span})"))
+        ok = np.where(~np.isnan(v))[0]
+        pick = list(ok) if labels == "all" else ([ok[0], ok[-1]] if labels == "ends" and len(ok) else [])
+        for j in pick:
+            above = i % 2 == 0
+            ax.annotate(vf(v[j]), (j, v[j]), xytext=(0, 6 if above else -7), textcoords="offset points",
+                        ha="center", va="bottom" if above else "top", fontsize=8.6, color=c,
+                        fontweight="bold", zorder=6,
+                        path_effects=[pe.withStroke(linewidth=2.4, foreground="white")])
+    ax.set_xlim(-0.4, n - 0.6)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(x, fontsize=9.5, color=M["tick"])
+    if ylim:
+        ax.set_ylim(*ylim)
+    else:
+        allv = np.concatenate([a[~np.isnan(a)] for a in vals.values()])
+        lo, hi = float(allv.min()), float(allv.max())
+        pad = (hi - lo) * 0.10 or 1
+        ax.set_ylim(0 if 0 <= lo < 0.6 * hi else lo - pad, hi + pad)
+    ax.yaxis.set_major_formatter(_tickfmt(yfmt))
+    ax.yaxis.set_major_locator(MaxNLocator(7, steps=[1, 2, 2.5, 5, 10]))
+    if legend:
+        ax.legend(handles, names, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=len(names),
+                  frameon=False, fontsize=9.5, handlelength=1.9, columnspacing=1.6)
+    _draw_marks(ax, x, marks, vals)
+
+
+def aligned_compare(series, title=None, source=None, unit=None, number=None, xlabel="Y{n}",
+                    yfmt=None, ylim=None, labels="ends", value_fmt=None, colors=None, marks=None,
+                    notes=None, notes_title=None, out=None, figsize=(7.2, 4.9)):
+    """Compare companies at the same stage of their life, not on the same calendar.
+
+    series: {"A 公司": {"start": 2011, "values": [...], "forecast_from": 2020},
+             "B 公司": {"start": 2003, "values": [...]}}
+    Each series is re-indexed to year 1, 2, 3… of its own history; the legend keeps the real years.
+    Give "periods": ["FY11", …] instead of "start" when the periods are not plain years.
+    xlabel: tick text, "Y{n}" by default, "第{n}年" for Chinese."""
+    _check_cjk(title, source, unit, *series, xlabel)
+    figsize, side = _prep_notes(notes, figsize)
+    fig, ax = _frame_mono(figsize, _numbered(title, number), source, unit, side=side)
+    _draw_aligned(ax, series, xlabel, yfmt, ylim, labels, value_fmt, colors, marks)
+    _fit(ax)
+    if notes:
+        _side_notes(fig, ax, notes, notes_title)
+    return _save(fig, out)
+
+
+# --------------------------------------------------------------------------
+# Recipe 11 — process flow with the cost of each step underneath
+# --------------------------------------------------------------------------
+def process_cost(steps, title=None, source=None, unit=None, number=None, value_fmt="%1",
+                 groups=None, highlight=None, highlight_text=None, out=None, figsize=(9.6, 5.2)):
+    """The steps of a process as boxes, each step's cost as a bar directly underneath, one step
+    ringed in red where the money (or the room to save it) is.
+
+    steps: [{"label": "顾客下单"}, {"label": "订单处理", "cost": 11.0, "cost_label": "支付手续费"}, …]
+    groups: [{"from": "仓储", "to": "打包", "text": "仓内费用 34.7%", "row": "steps" | "bars"}]
+    highlight: a step label (or list) to ring; highlight_text: the red line next to the ring."""
+    M = MONO
+    _check_cjk(title, source, unit, *[s["label"] for s in steps], highlight_text)
+    fig, ax = _frame_mono(figsize, _numbered(title, number), source, unit)
+    labels = [s["label"] for s in steps]
+    n = len(steps)
+    costs = np.array([np.nan if s.get("cost") is None else s["cost"] for s in steps], dtype=float)
+    hl = [highlight] if isinstance(highlight, str) else list(highlight or [])
+    hi_idx = [labels.index(h) for h in hl]
+    bmax = np.nanmax(costs) if np.any(~np.isnan(costs)) else 1
+    BAR_TOP, BOX_Y, BOX_H = 0.48, 0.82, 0.12
+    ax.set_ylim(0, bmax / BAR_TOP)
+    ax.set_xlim(-0.6, n - 0.4)
+    ax.grid(False)
+    ax.set_yticks([])
+    vf = fmt(value_fmt)
+    for i, v in enumerate(costs):
+        if np.isnan(v):
+            continue
+        c = M["navy"] if i in hi_idx else M["greys"][1]
+        ax.bar(i, v, width=0.46, color=c, zorder=3)
+        ax.annotate(vf(v), (i, v), xytext=(0, 4), textcoords="offset points", ha="center", va="bottom",
+                    fontsize=9.6, fontweight="bold" if i in hi_idx else "normal",
+                    color=M["alert"] if i in hi_idx else M["ink"], zorder=6)
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(["\n".join(_wrap(s.get("cost_label", s["label"]) if s.get("cost") is not None
+                                        else "", 10)) for s in steps], fontsize=9.2, color=M["tick"],
+                       linespacing=1.1)
+    _fit(ax)
+    tr = ax.get_xaxis_transform()
+    fig.canvas.draw()
+    bb = ax.get_window_extent(fig.canvas.get_renderer())
+    aspect = (bb.width / (n - 0.4 + 0.6)) / bb.height          # px per x unit / px per axes height
+    for i, s in enumerate(steps):
+        ring = i in hi_idx
+        ax.add_patch(FancyBboxPatch((i - 0.38, BOX_Y - BOX_H / 2), 0.76, BOX_H, transform=tr,
+                                    boxstyle="round,pad=0,rounding_size=0.06", mutation_aspect=aspect,
+                                    fc="white", ec=M["alert"] if ring else "#8C8C8C",
+                                    lw=1.2 if ring else 0.9, zorder=5, clip_on=False))
+        ax.text(i, BOX_Y, "\n".join(_wrap(s["label"], 8)), transform=tr, ha="center", va="center",
+                fontsize=9, color=M["ink"], zorder=6, linespacing=1.1)
+        if i < n - 1:
+            ax.annotate("", xy=(i + 0.62, BOX_Y), xytext=(i + 0.38, BOX_Y), xycoords=tr,
+                        arrowprops=dict(arrowstyle="-|>", color="#808080", lw=0.9, mutation_scale=9,
+                                        shrinkA=0, shrinkB=0), annotation_clip=False)
+        if not np.isnan(costs[i]):
+            top = costs[i] / (bmax / BAR_TOP) + 0.075
+            ax.plot([i, i], [top, BOX_Y - BOX_H / 2 - 0.01], transform=tr, color="#D0D0D0", lw=0.7,
+                    ls=(0, (1, 2)), zorder=1)
+    for g in groups or []:
+        a, b = labels.index(g["from"]), labels.index(g.get("to", g["from"]))
+        if g.get("row", "steps") == "steps":
+            yb, tick, ty, va = BOX_Y - BOX_H / 2 - 0.05, 0.02, BOX_Y - BOX_H / 2 - 0.065, "top"
+        else:
+            peak = np.nanmax(costs[a:b + 1]) / (bmax / BAR_TOP)
+            yb, tick, ty, va = peak + 0.11, -0.02, peak + 0.125, "bottom"
+        ax.plot([a - 0.3, a - 0.3, b + 0.3, b + 0.3], [yb + tick, yb, yb, yb + tick], transform=tr,
+                color="#595959", lw=0.9, zorder=4, clip_on=False)
+        ax.text((a + b) / 2, ty, g["text"], transform=tr, ha="center", va=va, fontsize=9,
+                color=M["ink"], zorder=6, path_effects=[pe.withStroke(linewidth=3, foreground="white")])
+    if hi_idx:
+        a, b = min(hi_idx), max(hi_idx)
+        ax.add_patch(Ellipse(((a + b) / 2, BOX_Y), (b - a) + 1.12, BOX_H * 2.4, transform=tr,
+                             fill=False, ec=M["alert"], lw=1.2, ls=_DASH, zorder=4, clip_on=False))
+        if highlight_text:
+            ax.text((a + b) / 2, BOX_Y + BOX_H * 1.2 + 0.02, highlight_text, transform=tr,
+                    ha="center", va="bottom", fontsize=9.6, fontweight="bold", color=M["alert"],
+                    zorder=6, clip_on=False)
+    _fit(ax)
+    return _save(fig, out)
+
+
+# --------------------------------------------------------------------------
+# Recipe 12 — structure compared: 100% columns joined part by part, with numbered notes
+# --------------------------------------------------------------------------
+def share_compare(columns, parts, title=None, source=None, unit=None, number=None, highlight=None,
+                  links=True, numbers=None, notes=None, notes_title=None, value_fmt="%",
+                  min_label=4, out=None, figsize=(6.6, 4.9)):
+    """Two to four 100% columns side by side, the same part joined by a dashed link, numbered dots
+    on the links that the notes on the right explain one by one.
+
+    columns: {"A 公司 2012": [..], "B 公司 2020H": [..]}  values bottom → top, normalised to 100.
+    parts: part names bottom → top.  highlight: part name(s) to colour (two at most).
+    numbers: {part: n} puts dot n on that part's link.  notes: ["…", "…"] numbered 1, 2, …"""
+    M = MONO
+    _check_cjk(title, source, unit, *columns, *parts)
+    figsize, side = _prep_notes(notes, figsize, side=0.38)
+    fig, ax = _frame_mono(figsize, _numbered(title, number), source, unit, side=side)
+    names = list(columns)
+    k = len(names)
+    data = []
+    for nm in names:
+        v = np.nan_to_num(np.array(columns[nm], dtype=float))
+        data.append(v / v.sum() * 100 if v.sum() else v)
+    hl = [highlight] if isinstance(highlight, str) else list(highlight or [])
+    accent = {p: c for p, c in zip(hl, (M["navy"], M["sky"]))}
+    greys = ["#E6E6E6", "#CFCFCF", "#B8B8B8", "#A0A0A0", "#8A8A8A", "#747474", "#5E5E5E"]
+    gi = iter(greys)
+    cols = [accent.get(p) or next(gi, "#D9D9D9") for p in parts]
+    W = 0.40
+    centers = {}
+    vf = fmt(value_fmt)
+    for c_i, v in enumerate(data):
+        cum = 0.0
+        for j, p in enumerate(parts):
+            h = v[j]
+            ax.bar(c_i, h, bottom=cum, width=W, color=cols[j], edgecolor="white", lw=0.6, zorder=3)
+            if h >= min_label:
+                dark = cols[j] in (M["navy"], "#747474", "#5E5E5E", "#8A8A8A")
+                ax.text(c_i, cum + h / 2, vf(h), ha="center", va="center", fontsize=9,
+                        color="white" if dark else M["ink"], zorder=6,
+                        fontweight="bold" if p in accent else "normal")
+            centers[(c_i, p)] = cum + h / 2
+            cum += h
+    marked = set(hl) | set((numbers or {}).keys())
+    for j, p in enumerate(parts):
+        if links is False or (links == "marked" and p not in marked):
+            continue
+        for c_i in range(k - 1):
+            y_a, y_b = centers[(c_i, p)], centers[(c_i + 1, p)]
+            ax.annotate("", xy=(c_i + 1 - W / 2 - 0.02, y_b), xytext=(c_i + W / 2 + 0.02, y_a),
+                        arrowprops=dict(arrowstyle="->", color="#9A9A9A", lw=0.8, ls=(0, (3, 2)),
+                                        shrinkA=0, shrinkB=0), zorder=4)
+    for p, num in (numbers or {}).items():
+        y_a, y_b = centers[(0, p)], centers[(1, p)] if k > 1 else centers[(0, p)]
+        _badge(ax, 0.5 if k > 1 else W, (y_a + y_b) / 2, num, ax.transData, color=M["ink"])
+    # direct labels on the left of the first column, spread so they never touch
+    ys = [centers[(0, p)] for p in parts]
+    order = np.argsort(ys)
+    fig.canvas.draw()
+    px_per = ax.get_window_extent(fig.canvas.get_renderer()).height / 100
+    min_gap = 11.5 * fig.dpi / 72 / px_per
+    placed = list(ys)
+    last = -1e9
+    for j in order:
+        placed[j] = max(placed[j], last + min_gap)
+        last = placed[j]
+    over = last - 99
+    if over > 0:
+        placed = [y - over for y in placed]
+    for j, p in enumerate(parts):
+        xl = -W / 2 - 0.08
+        ax.text(xl, placed[j], p, ha="right", va="center", fontsize=9,
+                color=M["navy"] if p in accent else M["tick"],
+                fontweight="bold" if p in accent else "normal", zorder=6)
+        if abs(placed[j] - ys[j]) > 0.5:
+            ax.plot([xl + 0.01, -W / 2], [placed[j], ys[j]], color="#BFBFBF", lw=0.6, zorder=2)
+    ax.set_xlim(-1.05, k - 0.55)
+    ax.set_ylim(0, 100)
+    ax.set_yticks([])
+    ax.grid(False)
+    ax.set_xticks(range(k))
+    ax.set_xticklabels(names, fontsize=9.8, color=M["ink"], fontweight="bold")
+    _fit(ax)
+    if notes:
+        _side_notes(fig, ax, notes, notes_title)
+    return _save(fig, out)
+
+
+_PANEL_DRAWERS.update(waterfall=_draw_waterfall, aligned=_draw_aligned)
+
+
+# --------------------------------------------------------------------------
 # JSON front door
 # --------------------------------------------------------------------------
 RECIPES = {
@@ -1150,6 +1858,11 @@ RECIPES = {
     "area_highlight": area_highlight,
     "scenario_fan": scenario_fan,
     "capability_ladder": capability_ladder,
+    "phase_trend": phase_trend,
+    "waterfall": waterfall,
+    "aligned_compare": aligned_compare,
+    "process_cost": process_cost,
+    "share_compare": share_compare,
 }
 
 

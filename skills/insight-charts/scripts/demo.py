@@ -219,6 +219,153 @@ SPECS = {"trend_events": spec_trend_events, "trend_events_price": spec_trend_eve
          "scenario_fan": spec_scenario_fan, "capability_ladder": spec_capability_ladder,
          "zh_trend_events": spec_zh_trend_events, "zh_panel_grid": spec_zh_panel_grid}
 
+# ---- 0.2.0: phases, bridges, aligned histories, process costs, structure links, marks ----
+def spec_zh_phase_trend():
+    yrs = [str(y) for y in range(2000, 2026)]
+    t = np.arange(26)
+    gross = 18 + 0.25 * t + np.where(t > 16, (t - 16) * 1.9, 0) + rng.normal(0, 0.6, 26)
+    ebitda = np.concatenate([np.linspace(-38, -4, 8), np.linspace(-1, 4.5, 9), np.linspace(5, 13, 9)])
+    net = np.concatenate([np.linspace(-46, -9, 8), np.linspace(-6, 2.5, 9), np.linspace(2, 7.5, 9)])
+    ebitda += rng.normal(0, 1.2, 26)
+    net += rng.normal(0, 1.4, 26)
+    return {
+        "recipe": "phase_trend", "number": 1, "yfmt": "%",
+        "title": "利润率走过三个阶段：先跑通模式，再换规模，最后靠结构改善把净利率稳定转正",
+        "source": "资料来源：示意数据",
+        "x": yrs,
+        "series": {"毛利率": r(gross), "EBITDA 利润率": r(ebitda), "净利率": r(net)},
+        "phases": [
+            {"from": "2000", "to": "2007", "name": "第一阶段（2000-2007）：", "verdict": "跑通模式",
+             "notes": ["自营起家，先做流量", "规模效应还没出现，连年亏损"]},
+            {"from": "2008", "to": "2016", "name": "第二阶段（2008-2016）：", "verdict": "以价换量",
+             "notes": ["开放平台，毛利率小幅抬升", "利润再投入，净利率从负值回到零附近"]},
+            {"from": "2017", "to": "2025", "name": "第三阶段（2017-2025）：", "verdict": "结构改善",
+             "notes": ["高毛利业务占比上升", "净利率稳定转正"]},
+        ],
+        "marks": [{"type": "pin", "at": "2004", "series": "毛利率", "text": "上市", "dy": -22}],
+    }
+
+
+def spec_zh_waterfall():
+    return {
+        "recipe": "waterfall", "number": 2, "unit": "单位：亿元",
+        "title": "新业务亏损吃掉主业近三成利润",
+        "source": "资料来源：示意数据，作者测算",
+        "steps": [
+            {"label": "主业 EBIT", "value": 180, "kind": "total", "tag": "利润率 2.4%"},
+            {"label": "新业务亏损", "value": -52},
+            {"label": "总部费用", "value": -15},
+            {"label": "投资收益", "value": 8},
+            {"label": "集团 EBIT", "kind": "subtotal", "tag": "利润率 1.6%"},
+        ],
+        "highlight": "新业务亏损",
+        "notes": ["主业利润率 2.4%，与同行相当", "新业务亏损 52 亿元，约占主业利润 29%，是最大的拖累",
+                  "剔除新业务后，集团利润率可回到 2% 以上"],
+        "notes_title": "利润从哪里漏掉",
+    }
+
+
+def spec_zh_aligned():
+    return {
+        "recipe": "aligned_compare", "number": 3, "yfmt": "%", "xlabel": "第{n}年",
+        "title": "按发展年份对齐：B 公司前五年增速远高于 A 公司同期，第六年起差距收窄到 5 个百分点以内",
+        "source": "资料来源：示意数据。注：横轴为各自统计起点后的第 N 年，虚线为预测",
+        "series": {
+            "B 公司": {"start": 2016, "values": [66, 58, 47, 41, 36, 33, 31, 30, 29, 28],
+                       "forecast_from": 2024},
+            "A 公司": {"start": 2003, "values": [26, 31, 23, 26, 39, 29, 27, 26, 25, 24]},
+        },
+    }
+
+
+def spec_zh_process_cost():
+    steps = [("顾客下单", 8.5, "支付手续费"), ("订单处理", 7.2, "IT 与折旧"), ("仓储", 11.6, "仓库租金"),
+             ("拣货打包", 17.9, "仓内人工"), ("干线运输", 15.4, "干线运输"), ("末端配送", 33.8, "配送人工"),
+             ("签收售后", 5.6, "客服人工")]
+    return {
+        "recipe": "process_cost", "number": 4, "unit": "占履约成本比例",
+        "title": "末端配送占履约成本三分之一，是下一步降本的重点",
+        "source": "资料来源：示意数据，作者整理",
+        "steps": [{"label": a, "cost": b, "cost_label": c} for a, b, c in steps],
+        "groups": [{"from": "仓储", "to": "拣货打包", "text": "仓内环节 29.5%"}],
+        "highlight": "末端配送", "highlight_text": "降本空间最大",
+    }
+
+
+def spec_zh_share_compare():
+    return {
+        "recipe": "share_compare", "number": 5,
+        "title": "A 公司更重固定资产，B 公司把更多资产放在股权投资上",
+        "source": "资料来源：示意数据",
+        "parts": ["现金", "应收", "存货", "固定资产", "股权投资", "其他"],
+        "columns": {"A 公司 2015": [30, 8, 16, 28, 4, 14], "B 公司 2025": [36, 6, 18, 12, 18, 10]},
+        "highlight": ["固定资产", "股权投资"],
+        "numbers": {"现金": 1, "存货": 2, "固定资产": 3, "股权投资": 4},
+        "notes": ["两家账上都留着三成以上现金", "存货占比接近，差别不在周转",
+                  "A 公司固定资产占 28%，是 B 公司的两倍多", "B 公司股权投资占 18%，靠投资延伸生态"],
+        "notes_title": "资产结构对比",
+    }
+
+
+def spec_zh_trend_eras():
+    q = [f"{y}Q{k}" for y in range(2012, 2027) for k in range(1, 5)][:58]
+    t = np.arange(58)
+    trough = -10 * np.exp(-((t - 27.5) / 3.2) ** 2)              # 2018Q2-2019Q2 dip
+    pe = 32.5 + 2.2 * np.sin(t / 4.5) + trough + rng.normal(0, 0.9, 58)
+    ev = pe * 0.55 + rng.normal(0, 0.6, 58)
+    return {
+        "recipe": "trend_events",
+        "title": "零售主业的估值中枢在 30-35 倍",
+        "source": "资料来源：示意数据",
+        "x": q, "xtick_every": 4, "yfmt": "{:.0f}x", "ylim": [0, 50],
+        "series": {"市盈率（未来 12 个月）": r(pe), "EV/EBITDA（未来 12 个月）": r(ev)},
+        "eras": [{"from": "2012Q1", "label": "零售期"}, {"from": "2017Q1", "label": "云业务期"},
+                 {"from": "2023Q1", "label": "广告期？", "open": True}],
+        "marks": [{"type": "box", "from": "2018Q1", "to": "2019Q3", "y": [8, 31],
+                   "text": "估值底部", "text_at": "bottom"}],
+    }
+
+
+def spec_zh_share_cross():
+    yrs = ["2019", "2020", "2021", "2022", "2023E", "2024E", "2025E"]
+    return {
+        "recipe": "stacked_family", "percent": True,
+        "title": "前四大平台成交额份额",
+        "source": "资料来源：示意数据。2023E 起为线性外推",
+        "x": yrs,
+        "layers": {"甲": [72, 68, 63, 58, 54, 50, 46], "乙": [20, 21, 22, 22, 22, 22, 22],
+                   "丙": [5, 8, 11, 15, 18, 21, 24], "丁": [3, 3, 4, 5, 6, 7, 8]},
+        "colors": {"甲": "#0D4753", "乙": "#AACFD8", "丙": "#F38C5C", "丁": "#C9AEAB"},
+        "marks": [{"type": "cross", "from": "2023E", "to": "2025E", "text": "份额线性外推不成立"}],
+    }
+
+
+SPECS.update(zh_phase_trend=spec_zh_phase_trend, zh_waterfall=spec_zh_waterfall,
+             zh_aligned=spec_zh_aligned, zh_process_cost=spec_zh_process_cost,
+             zh_share_compare=spec_zh_share_compare, zh_trend_eras=spec_zh_trend_eras,
+             zh_share_cross=spec_zh_share_cross)
+
+
+def spec_zh_cycle_panels():
+    q = ["1Q18", "2Q18", "3Q18", "4Q18", "1Q19", "2Q19", "3Q19", "4Q19"]
+    return {"recipe": "panel_grid", "start_number": 6, "panels": [
+        {"kind": "bar_line", "title": "收入增速连续四个季度放缓，2019 年下半年回到 25% 以上",
+         "unit": "单位：亿元", "source": "资料来源：示意数据",
+         "x": q, "bars": [1000, 1220, 1040, 1350, 1210, 1500, 1350, 1700],
+         "line": [33, 31, 25, 22, 21, 23, 29, 26], "line_fmt": "%", "right_fmt": "%",
+         "bar_name": "收入", "line_name": "同比增速（右轴）",
+         "marks": [{"type": "box", "from": "3Q18", "to": "1Q19", "text": "下行期"}]},
+        {"kind": "lines", "title": "净利率从 2019 年起连续超出一致预期",
+         "source": "资料来源：示意数据", "x": q, "yfmt": "%1",
+         "series": {"实际净利率": [1.2, 0.8, 0.5, -0.6, 1.5, 2.1, 2.6, 2.4],
+                    "一致预期": [1.0, 0.9, 0.7, 0.2, 0.9, 1.4, 1.8, 2.0]},
+         "marks": [{"type": "box", "from": "1Q19", "to": "4Q19", "text": "恢复期"}]},
+    ]}
+
+
+SPECS.update(zh_cycle_panels=spec_zh_cycle_panels)
+
+
 if __name__ == "__main__":
     os.makedirs(EX, exist_ok=True)
     os.makedirs(AS, exist_ok=True)
