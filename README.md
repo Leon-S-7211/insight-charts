@@ -34,10 +34,14 @@ cp -r skills/insight-charts ~/.claude/skills/
 ### DeepSeek Harness
 
 ```bash
-dsh plugin --profile web add github:Leon-S-7211/insight-charts#<commit>
+dsh plugin --profile web add dsh-plugin-insight-charts
 ```
 
-把 `<commit>` 换成本仓库最新的提交号。npm 包 `dsh-plugin-insight-charts` 尚未发布，发布后可以直接按包名安装。
+也可以直接从 GitHub 安装，把 `<commit>` 换成本仓库最新的提交号：
+
+```bash
+dsh plugin --profile web add github:Leon-S-7211/insight-charts#<commit>
+```
 
 或者作为普通技能复制（社区文档给出的两个位置，任选其一）：
 
