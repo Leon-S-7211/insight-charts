@@ -478,6 +478,18 @@ SPECS.update(zh_flywheel=spec_zh_flywheel, zh_tiers=spec_zh_tiers, zh_donuts=spe
              zh_sotp_panels=spec_zh_sotp_panels, zh_stacked_total=spec_zh_stacked_total)
 
 
+# Example images are stored as 256-colour PNGs so the package stays small; charts with colour
+# gradients keep full colour because the palette would band them.
+FULL_COLOUR = {"scenario_fan"}
+
+
+def shrink(path):
+    from PIL import Image
+    im = Image.open(path).convert("RGB")
+    im.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(
+        path, optimize=True)
+
+
 if __name__ == "__main__":
     os.makedirs(EX, exist_ok=True)
     os.makedirs(AS, exist_ok=True)
@@ -485,4 +497,7 @@ if __name__ == "__main__":
         spec = SPECS[name]()
         with open(os.path.join(EX, name + ".json"), "w", encoding="utf-8") as f:
             json.dump(spec, f, ensure_ascii=False, indent=1)
-        print(ic.render(spec, os.path.join(AS, name + ".png")))
+        path = ic.render(spec, os.path.join(AS, name + ".png"))
+        if name not in FULL_COLOUR:
+            shrink(path)
+        print(path)
