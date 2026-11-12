@@ -1,0 +1,13 @@
+{
+  "name": "insight-charts-marketplace",
+  "owner": { "name": "Leon-S-7211" },
+  "plugins": [
+    {
+      "name": "insight-charts",
+      "source": "./",
+      "description": "研报级图表技能：两套主题、七个画法、放图时机与标题写法。",
+      "version": "0.1.0",
+      "license": "MIT"
+    }
+  ]
+}

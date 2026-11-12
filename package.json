@@ -1,0 +1,67 @@
+{
+  "name": "dsh-plugin-insight-charts",
+  "version": "0.1.0",
+  "description": "Research-report-quality charts as an agent skill: two themes, seven matplotlib recipes (event-marked trends, family-coloured stacks, bar+line, panel grids, highlighted areas, scenario fans, capability ladders) plus rules for when to place a chart and how to title it.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "scripts/selfcheck.mjs",
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "skills",
+    ".claude-plugin",
+    "LICENSE",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsh-skill",
+    "deepseek",
+    "deepseek-harness",
+    "agent-skill",
+    "agent-skills",
+    "claude-code-plugin",
+    "charts",
+    "matplotlib",
+    "data-visualization",
+    "research-report"
+  ],
+  "license": "MIT",
+  "author": "Leon-S-7211",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Leon-S-7211/insight-charts.git"
+  },
+  "homepage": "https://github.com/Leon-S-7211/insight-charts#readme",
+  "bugs": {
+    "url": "https://github.com/Leon-S-7211/insight-charts/issues"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.1.2-rc.1 <0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node scripts/selfcheck.mjs"
+  }
+}

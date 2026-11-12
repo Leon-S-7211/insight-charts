@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="insight-charts">
+  <rect width="64" height="64" rx="14" fill="#0D4753"/>
+  <rect x="13" y="36" width="8" height="15" rx="1.5" fill="#AACFD8"/>
+  <rect x="25" y="28" width="8" height="23" rx="1.5" fill="#AACFD8"/>
+  <rect x="37" y="33" width="8" height="18" rx="1.5" fill="#AACFD8"/>
+  <path d="M30 12v40" stroke="#ffffff" stroke-opacity=".45" stroke-width="1.6"/>
+  <path d="M12 30l10-6 9 3 10-11 11-4" fill="none" stroke="#F38C5C" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,19 @@
+{
+  "name": "insight-charts",
+  "version": "0.1.0",
+  "description": "研报级图表技能：两套配色主题、七个 matplotlib 画法（事件分隔趋势图、家族配色堆叠柱、柱线双轴、多图联排、高亮面积图、情景区间图、能力阶梯图），外加放图时机与标题写法。",
+  "author": {
+    "name": "Leon-S-7211"
+  },
+  "license": "MIT",
+  "keywords": [
+    "charts",
+    "matplotlib",
+    "data-visualization",
+    "research-report",
+    "图表",
+    "可视化"
+  ],
+  "homepage": "https://github.com/Leon-S-7211/insight-charts",
+  "repository": "https://github.com/Leon-S-7211/insight-charts"
+}

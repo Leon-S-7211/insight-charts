@@ -1,0 +1,98 @@
+{
+ "recipe": "scenario_fan",
+ "name": "Company A - 0000.HK Price",
+ "now_label": "HKD 891.0\n17 Apr",
+ "history": [
+  333.3,
+  343.8,
+  350.8,
+  333.7,
+  349.7,
+  358.1,
+  374.1,
+  372.5,
+  371.7,
+  362.5,
+  390.7,
+  391.1,
+  409.6,
+  405.3,
+  409.2,
+  394.4,
+  392.8,
+  405.1,
+  391.0,
+  452.5,
+  489.0,
+  478.4,
+  486.3,
+  495.6,
+  518.9,
+  525.6,
+  522.4,
+  537.0,
+  527.0,
+  508.1,
+  531.4,
+  586.5,
+  559.4,
+  584.4,
+  587.3,
+  579.0,
+  633.0,
+  640.4,
+  716.4,
+  714.8,
+  752.9,
+  770.1,
+  769.4,
+  814.4,
+  834.1,
+  879.6,
+  903.0,
+  891.0
+ ],
+ "now": 891,
+ "base": 1160,
+ "upside": 1384,
+ "downside": 650,
+ "table_title": "Value drivers\n(2026E)",
+ "source": "Source: illustrative estimates",
+ "table": {
+  "columns": [
+   "Total rev",
+   "On-premise\ndeployment rev",
+   "Open platform\nand API rev",
+   "GPM",
+   "Adjusted OPM"
+  ],
+  "row_labels": {
+   "upside": "HK$1,384 upside",
+   "base": "HK$1,160 base",
+   "downside": "HK$650 downside"
+  },
+  "rows": {
+   "upside": [
+    "Rmb5,443m",
+    "Rmb1,175m",
+    "Rmb4,268m",
+    "40%",
+    "-120%"
+   ],
+   "base": [
+    "Rmb3,208m",
+    "Rmb1,007m",
+    "Rmb2,200m",
+    "33%",
+    "-161%"
+   ],
+   "downside": [
+    "Rmb2,313m",
+    "Rmb801m",
+    "Rmb1,512m",
+    "30%",
+    "-240%"
+   ]
+  }
+ }
+}

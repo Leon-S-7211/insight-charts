@@ -1,0 +1,139 @@
+{
+ "recipe": "panel_grid",
+ "start_number": 15,
+ "panels": [
+  {
+   "kind": "cost_steps",
+   "title": "COGS breakdown – Company A vs. Company B",
+   "source": "Source: Company data. Note: illustrative figures.",
+   "parts": [
+    "Labour costs",
+    "Computing service fee",
+    "Others"
+   ],
+   "groups": {
+    "Company B": [
+     1,
+     93,
+     6
+    ],
+    "Company A": [
+     39,
+     38,
+     23
+    ]
+   },
+   "highlight": "Company A"
+  },
+  {
+   "kind": "bar_line",
+   "title": "Company A maintains healthy GPM for on-premise deployment business",
+   "source": "Source: Company data",
+   "x": [
+    "2022",
+    "2023",
+    "2024",
+    "2025"
+   ],
+   "bars": [
+    29,
+    77,
+    174,
+    260.7
+   ],
+   "line": [
+    53.6,
+    68.2,
+    66.0,
+    48.8
+   ],
+   "line_fmt": "%1",
+   "right_fmt": "%",
+   "right_ylim": [
+    0,
+    80
+   ],
+   "left_ylim": [
+    0,
+    300
+   ],
+   "bar_name": "Gross profit",
+   "line_name": "Gross margin (RHS)"
+  },
+  {
+   "kind": "bar_line",
+   "title": "Company A's DSO trend during 2022-25",
+   "unit": "Unit: RMB m",
+   "source": "Source: Company data",
+   "x": [
+    "2022",
+    "2023",
+    "2024",
+    "2025"
+   ],
+   "bars": [
+    57,
+    125,
+    312,
+    724
+   ],
+   "line": [
+    42.1,
+    23.1,
+    106.5,
+    152.8
+   ],
+   "line_fmt": "{:.1f}",
+   "right_fmt": ",",
+   "right_ylim": [
+    0,
+    180
+   ],
+   "left_ylim": [
+    0,
+    800
+   ],
+   "bar_name": "Trade receivables",
+   "line_name": "DSO (days, RHS)",
+   "legend": "bottom"
+  },
+  {
+   "kind": "bar_line",
+   "title": "Company A's credit loss coverage ratio remained stable",
+   "unit": "Unit: RMB mn",
+   "source": "Source: Company data",
+   "x": [
+    "2022",
+    "2023",
+    "2024",
+    "2025"
+   ],
+   "bars": [
+    0.1,
+    1.0,
+    9.0,
+    36.0
+   ],
+   "bar_fmt": "{:.1f}",
+   "line": [
+    0.4,
+    11.1,
+    9.0,
+    10.6
+   ],
+   "line_fmt": "%1",
+   "right_fmt": "%",
+   "right_ylim": [
+    0,
+    12
+   ],
+   "left_ylim": [
+    0,
+    40
+   ],
+   "bar_name": "Total loss allowance",
+   "line_name": "Credit loss coverage ratio (RHS)",
+   "legend": "bottom"
+  }
+ ]
+}

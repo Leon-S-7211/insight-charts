@@ -1,0 +1,211 @@
+{
+ "recipe": "capability_ladder",
+ "number": 5,
+ "source": "Source: Company data",
+ "title": "Company A's model iteration is in line with the five paradigms",
+ "timeline": [
+  "Jan-2022",
+  "Mar-2022",
+  "May-2022",
+  "Jul-2022",
+  "Sep-2022",
+  "Nov-2022",
+  "Jan-2023",
+  "Mar-2023",
+  "May-2023",
+  "Jul-2023",
+  "Sep-2023",
+  "Nov-2023",
+  "Jan-2024",
+  "Mar-2024",
+  "May-2024",
+  "Jul-2024",
+  "Sep-2024",
+  "Nov-2024",
+  "Jan-2025",
+  "Mar-2025",
+  "May-2025",
+  "Jul-2025",
+  "Sep-2025",
+  "Nov-2025",
+  "Jan-2026",
+  "Mar-2026",
+  "May-2026",
+  "Jul-2026",
+  "Sep-2026"
+ ],
+ "stages": [
+  {
+   "label": "Chatbot",
+   "icon": "chat",
+   "y": 0
+  },
+  {
+   "label": "AI Coding Assistant",
+   "icon": "list",
+   "y": 1.7
+  },
+  {
+   "label": "Vibe Coding",
+   "icon": "coder",
+   "y": 3.5
+  },
+  {
+   "label": "Agentic Engineering",
+   "icon": "network",
+   "y": 5.4
+  },
+  {
+   "label": "Long Horizon Task",
+   "icon": "timer",
+   "y": 7.3
+  },
+  {
+   "label": "Autonomous OS",
+   "icon": "screen",
+   "y": 10.0
+  }
+ ],
+ "curve": [
+  [
+   0,
+   0.05
+  ],
+  [
+   4,
+   0.2
+  ],
+  [
+   8,
+   0.5
+  ],
+  [
+   12,
+   0.95
+  ],
+  [
+   16,
+   1.6
+  ],
+  [
+   19,
+   2.5
+  ],
+  [
+   21,
+   3.5
+  ],
+  [
+   22.5,
+   4.4
+  ],
+  [
+   23.6,
+   5.1
+  ],
+  [
+   24.6,
+   5.9
+  ],
+  [
+   26,
+   7.1
+  ],
+  [
+   27.2,
+   8.3
+  ],
+  [
+   28,
+   9.4
+  ]
+ ],
+ "milestones": [
+  {
+   "at": 4.4,
+   "name": "CoderX1"
+  },
+  {
+   "at": 9.4,
+   "name": "CoderX2"
+  },
+  {
+   "at": 12.4,
+   "name": "CoderX3"
+  },
+  {
+   "at": 15.4,
+   "name": "CoderX4"
+  },
+  {
+   "at": 5.8,
+   "name": "",
+   "note": "**Coding assistants** based on the base model",
+   "text": [
+    2.6,
+    2.7
+   ],
+   "width": 1.9
+  },
+  {
+   "at": 21,
+   "name": "M-4.5:",
+   "note": "First model to integrate native fusion of **reasoning, coding and agent** capabilities in one architecture",
+   "text": [
+    7.3,
+    5.5
+   ],
+   "width": 1.85
+  },
+  {
+   "at": 22.6,
+   "name": "M-4.6:",
+   "note": "200K **long context window** + improving coding capabilities in real life scenario",
+   "text": [
+    22.9,
+    2.75
+   ],
+   "width": 1.5
+  },
+  {
+   "at": 24.3,
+   "name": "M-4.7:",
+   "note": "long-horizon planning + tool orchestration",
+   "text": [
+    12.9,
+    6.35
+   ],
+   "width": 1.7
+  },
+  {
+   "at": 24.9,
+   "name": "M-5:",
+   "note": "A leap into **agentic engineering** for end-to-end software engineering",
+   "text": [
+    13.1,
+    8.0
+   ],
+   "width": 1.85
+  },
+  {
+   "at": 25.8,
+   "name": "M-5-Turbo:",
+   "note": "First foundation model deeply optimized for the **agent** scenario",
+   "text": [
+    16.6,
+    9.1
+   ],
+   "width": 1.85
+  },
+  {
+   "at": 26.9,
+   "name": "M-5.1:",
+   "note": "Can operate continuously and autonomously for up to **8 hours** in a single task.",
+   "text": [
+    22.7,
+    10.95
+   ],
+   "width": 1.7
+  }
+ ]
+}

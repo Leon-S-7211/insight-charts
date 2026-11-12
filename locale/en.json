@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "insight-charts",
+    "description": "Research-report-quality charts for your agent: two themes, seven ready-made recipes, and rules for when to place a chart and how to title it. Needs only matplotlib."
+  }
+}

@@ -1,0 +1,5 @@
+# insight-charts bundle layer: register the packaged chart skill as an agent skill.
+# Referenced from package.json#dsh.bundle.patch.
+- insert:
+    - id: dsh-plugin-insight-charts
+      name: dsh-plugin-insight-charts
